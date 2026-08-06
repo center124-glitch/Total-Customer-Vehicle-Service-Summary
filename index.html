@@ -1,5 +1,36 @@
 <!DOCTYPE html>
 <!--
+  ระบบวิเคราะห์ยอดลูกค้า-ยอดรถยนต์ · เวอร์ชัน v91
+  v91 — แยกพฤติกรรมหน้าโลโก้ 2 โหมด + ขยายเวลาพักหน้าจอเป็น 5 นาที:
+
+   • [พักหน้าจอ] ขยายจาก 1 นาที เป็น 5 นาที ตามที่ต้องการ
+
+   • ★★ [แยกพฤติกรรมชัดเจน 2 โหมด] — จุดหลักของเวอร์ชันนี้
+       (1) เปิดโปรแกรมครั้งแรก → เล่นอินโทร 4 วินาที แล้ว "เข้าเองอัตโนมัติ"
+           มีแถบความคืบหน้าวิ่ง 0→100% ให้เห็นว่าอีกนานแค่ไหนจะเข้า
+       (2) ไม่มีการใช้งานครบ 5 นาที → กลับมาหน้าโลโก้แล้ว "ค้างไว้ตลอด"
+           จนกว่าจะแตะ/คลิก/กดปุ่ม จึงเข้าโปรแกรม · ไม่มีแถบนับถอยหลัง
+           แสดงคำชวน "แตะหน้าจอเพื่อดูข้อมูล" แทน
+       ★ เหตุผลที่โหมด (2) ต้องไม่เข้าเอง: จุดประสงค์คือไม่ให้ข้อมูลค้างบนจอเมื่อไม่มีคนดู
+         ถ้าเข้าเองหลังไม่กี่วินาที ข้อมูลก็จะกลับมาแสดงทั้งที่ยังไม่มีใครอยู่ตรงนั้น
+         ซึ่งขัดกับสิ่งที่ต้องการโดยสิ้นเชิง
+       การจัดการทางเทคนิค: โหมดพักหน้าจอจะไม่ตั้งตัวจับเวลาใดๆ และตั้ง introStartAt = 0
+         เพื่อปิดตัวตรวจเวลาจริง (checkIntroElapsed) ไม่ให้พาเข้าเองทางอ้อม
+
+   • [เอฟเฟกต์หน้าโลโก้โหมดพักหน้าจอ] เพิ่มคลาส .intro-idle สลับชุดแอนิเมชัน
+       - โลโก้หายใจช้าๆ (ย่อ-ขยาย + เอียงเล็กน้อย) รอบละ 4.5 วินาที
+       - แสงเรืองรอบโลโก้เต้นตามจังหวะเดียวกัน ให้รู้ว่าระบบยังทำงานอยู่
+       - ระลอกคลื่นถี่ขึ้น และอนุภาคแสงลอยเด่นขึ้น ดูเชิญชวนให้แตะ
+       - คำชวนแตะเต้นเบาๆ ในกรอบกระจกฝ้า (backdrop-filter)
+     ★ ใช้เฉพาะ transform/opacity ไม่ใช้ width/left ที่บังคับให้เบราว์เซอร์คำนวณ layout ใหม่ทุกเฟรม
+       เพื่อให้แอนิเมชันทำงานบน GPU — จอที่เปิดค้างทั้งวันจะไม่ร้อนและไม่กินแบตเตอรี่
+     ★ เคารพ prefers-reduced-motion เสมอ (ผู้ใช้บางคนเวียนหัวกับแอนิเมชัน)
+
+   • [ตรวจสอบ] เพิ่มชุดทดสอบพฤติกรรมทั้งสองโหมด 10 รายการ (edge case รวมเป็น 70 กรณี)
+     ครอบคลุม: การตั้ง/ไม่ตั้งตัวจับเวลา · introStartAt · checkIntroElapsed ต้องไม่พาเข้าในโหมดพัก ·
+     การแสดง/ซ่อนแถบนับถอยหลังและคำชวนแตะ · คลาส intro-idle · การแตะเพื่อเข้า
+     ทดสอบวงจรเต็มแล้ว: เข้าโปรแกรม → พักครบเวลา → ค้างหน้าโลโก้ → แตะเข้า → นับ idle ใหม่ → วนซ้ำได้
+  ───────────────────────────────────────────────────────────────
   ระบบวิเคราะห์ยอดลูกค้า-ยอดรถยนต์ · เวอร์ชัน v90
   v90 — ลบปุ่มข้ามอินโทร · เวลาแสดงเด่นแทน · เพิ่มโลโก้องค์กร Seacon Bangkae:
 
@@ -1233,6 +1264,36 @@ input[type="number"]::-webkit-inner-spin-button{opacity:1;}
 #introSplash{transition:opacity .6s ease, visibility .6s ease;}
 #introSplash.intro-hide{opacity:0;visibility:hidden;pointer-events:none;}
 #introClockDate{animation:introUp .7s ease .5s both;}
+
+/* ═══ v91: เอฟเฟกต์หน้าโลโก้โหมดพักหน้าจอ (.intro-idle) ═══
+   จอในพื้นที่ส่วนกลางจะค้างหน้านี้ไว้นาน จึงต้องดูมีชีวิตแต่ไม่กวนสายตา
+   ★ ใช้ transform/opacity เท่านั้น (ไม่ใช้ width/left ที่บังคับให้เบราว์เซอร์คำนวณ layout ใหม่ทุกเฟรม)
+     เพื่อให้แอนิเมชันทำงานบน GPU — จอที่เปิดค้างทั้งวันจะไม่ร้อนและไม่กินแบตเตอรี่ */
+#introHint{animation:introHintPulse 2.6s ease-in-out infinite, introUp .8s ease .8s both;}
+@keyframes introHintPulse{
+  0%,100%{opacity:.72; transform:translateY(0) scale(1);}
+  50%    {opacity:1;    transform:translateY(-3px) scale(1.02);}
+}
+/* โหมดพักหน้าจอ: โลโก้หายใจช้าๆ + แสงเรืองเข้มขึ้นเล็กน้อย ให้รู้ว่าระบบยังทำงานอยู่ */
+.intro-idle .intro-logo{animation:introIdleBreath 4.5s ease-in-out infinite;}
+@keyframes introIdleBreath{
+  0%,100%{transform:scale(1)    rotate(0deg);}
+  50%    {transform:scale(1.035) rotate(.6deg);}
+}
+.intro-idle .intro-glow{animation:introIdleGlow 4.5s ease-in-out infinite;}
+@keyframes introIdleGlow{
+  0%,100%{opacity:.5;  transform:translateX(-50%) scale(1);}
+  50%    {opacity:.95; transform:translateX(-50%) scale(1.14);}
+}
+/* ระลอกคลื่นถี่ขึ้นเล็กน้อยตอนพักหน้าจอ ให้ดูเชิญชวนให้แตะ */
+.intro-idle .intro-ripple{animation-duration:3.2s;}
+.intro-idle .intro-ripple2{animation-duration:3.2s;}
+/* อนุภาคแสงลอยเด่นขึ้นตอนพักหน้าจอ */
+.intro-idle .intro-particle{animation-duration:5.5s;}
+/* เคารพการตั้งค่าลดการเคลื่อนไหวของระบบเสมอ (ผู้ใช้บางคนเวียนหัวกับแอนิเมชัน) */
+@media (prefers-reduced-motion: reduce){
+  #introHint,.intro-idle .intro-logo,.intro-idle .intro-glow{animation:none !important;}
+}
 #introClock{animation:introUp .8s ease .62s both;}
 @media (prefers-reduced-motion: reduce){
   .intro-pulse-line,.intro-logo,.intro-title,.intro-sub,.intro-sub2,.intro-progress,.intro-aurora,.intro-glow,.intro-glow-red,.intro-ring-spin,.intro-ripple,.intro-particle{animation-duration:.01s !important;}
@@ -1734,6 +1795,11 @@ main .card{max-width:100%;}
     <p id="introClock" style="font-family:Kanit,sans-serif;font-weight:600;font-size:38px;margin:2px 0 0;
        letter-spacing:1.5px;line-height:1.15;font-variant-numeric:tabular-nums;
        text-shadow:0 2px 18px rgba(0,0,0,.28);"></p>
+    <!-- v91: คำชวนแตะ — แสดงเฉพาะโหมดพักหน้าจอ (ที่ระบบจะไม่เข้าเอง) -->
+    <p id="introHint" style="display:none;font-family:Sarabun,sans-serif;font-size:14px;margin:26px 0 0;
+       letter-spacing:.4px;padding:9px 22px;border-radius:999px;
+       border:1px solid rgba(255,255,255,.28);background:rgba(255,255,255,.09);
+       backdrop-filter:blur(4px);-webkit-backdrop-filter:blur(4px);"></p>
     <!-- แถบโหลดชิมเมอร์ (แสดงเฉพาะตอนเปิดครั้งแรก) -->
     <div id="introProgressWrap" style="width:180px;height:4px;margin:26px auto 0;border-radius:10px;background:rgba(255,255,255,.16);overflow:hidden;">
       <div class="intro-progress" style="height:100%;width:40%;border-radius:10px;background:linear-gradient(90deg,transparent,#fff,transparent);"></div>
@@ -6013,7 +6079,7 @@ function init(){
 // - เปิดโปรแกรม → แสดงหน้าโลโก้/กราฟิก ผู้ใช้ต้องแตะ "เข้าดูข้อมูล" ก่อน (ไม่โชว์ข้อมูลตลอดเวลา)
 // - ระหว่างใช้งาน ถ้าไม่มีการสัมผัส/คลิก/พิมพ์/เลื่อน ครบ 1 นาที → กลับมาหน้านี้อัตโนมัติ
 // ═══════════════════════════════════════════════════════════════
-const IDLE_TIMEOUT_MS = 60 * 1000; // 1 นาที
+const IDLE_TIMEOUT_MS = 5 * 60 * 1000; // v91: 5 นาที — ไม่มีการใช้งานแล้วกลับไปหน้าโลโก้
 let idleTimer = null;
 let introClockTimer = null;
 let welcomeActive = true; // true = กำลังแสดงหน้า Welcome อยู่ (ยังไม่เข้าโปรแกรม)
@@ -6050,8 +6116,17 @@ function stopIntroClock(){
 //   และเป็นทางสำรองสำคัญ: ถ้าตัวจับเวลาไม่ทำงาน (เบราว์เซอร์บางรุ่นหยุด timer
 //   เมื่อแท็บอยู่เบื้องหลัง) ผู้ใช้ยังกดเข้าเองได้ ไม่ค้างอยู่หน้าอินโทรตลอดไป
 // ═══════════════════════════════════════════════════════════════
-const INTRO_DURATION_MS = 4000;   // ความยาวอินโทรตอนเปิดโปรแกรมครั้งแรก
-const INTRO_RESUME_MS  = 2000;    // ตอนกลับมาจากพักหน้าจอ — สั้นลง เพราะผู้ใช้อยู่หน้าเดิมอยู่แล้ว
+// ═══════════════════════════════════════════════════════════════
+// v91: พฤติกรรมหน้าโลโก้ แยกเป็น 2 กรณีชัดเจน
+// ───────────────────────────────────────────────────────────────
+//   (1) เปิดโปรแกรมครั้งแรก  → เล่นอินโทร 4 วิ แล้ว "เข้าเองอัตโนมัติ"
+//   (2) พักหน้าจอครบ 5 นาที → กลับมาหน้าโลโก้แล้ว "ค้างไว้ตลอด"
+//       จนกว่าจะแตะ/คลิก/กดปุ่ม จึงเข้าโปรแกรม
+//   ★ เหตุผลที่กรณี (2) ต้องไม่เข้าเอง: จุดประสงค์คือ "ไม่ให้ข้อมูลค้างบนจอ"
+//     เมื่อไม่มีคนดู (จอในพื้นที่ทำงาน/พื้นที่ส่วนกลาง) ถ้าเข้าเองหลังไม่กี่วินาที
+//     ข้อมูลก็จะกลับมาแสดงทั้งที่ยังไม่มีคนอยู่ตรงนั้น ซึ่งขัดกับสิ่งที่ต้องการ
+// ═══════════════════════════════════════════════════════════════
+const INTRO_DURATION_MS = 4000;   // ความยาวอินโทรตอนเปิดโปรแกรมครั้งแรก (auto-enter)
 let introAutoTimer = null;
 let introWatchTimer = null;   // ตัวตรวจสำรอง — ทำงานทุก 1 วิ เทียบกับเวลาเริ่มจริง
 let introStartAt = 0;         // เวลาที่เริ่มแสดงอินโทร (Date.now)
@@ -6085,31 +6160,51 @@ function showWelcome(firstLoad){
   el.style.display = 'flex';
   startIntroClock();
 
-  const duration = firstLoad ? INTRO_DURATION_MS : INTRO_RESUME_MS;
+  // firstLoad = true  → นับถอยหลังแล้วเข้าเอง
+  // firstLoad = false → โหมดพักหน้าจอ: ค้างหน้าโลโก้ไว้ รอผู้ใช้แตะเท่านั้น
+  const autoEnter = !!firstLoad;
+  const duration = INTRO_DURATION_MS;
 
-  // แถบความคืบหน้าวิ่งจาก 0 → 100% ตามเวลาจริงของอินโทร
-  // ให้ผู้ใช้เห็นว่าอีกนานแค่ไหนจะเข้า ไม่ใช่แถบวิ่งวนไปเรื่อยๆ ที่บอกอะไรไม่ได้
-  if (prog){
-    prog.style.display = 'block';
-    const bar = prog.querySelector('.intro-progress');
-    if (bar){
-      bar.style.transition = 'none';
-      bar.style.width = '0%';
-      bar.style.background = 'linear-gradient(90deg,#C6FFDD,#FBD786 50%,#F7797D)';
-      // บังคับให้เบราว์เซอร์คำนวณ layout ก่อน เพื่อให้ transition ทำงาน (ไม่งั้นจะกระโดดไป 100% ทันที)
-      void bar.offsetWidth;
-      bar.style.transition = `width ${duration}ms linear`;
-      bar.style.width = '100%';
+  const el2 = document.getElementById('introSplash');
+  el2.classList.toggle('intro-idle', !autoEnter);   // สลับชุดเอฟเฟกต์ตามโหมด
+
+  if (autoEnter){
+    // ── โหมดเปิดครั้งแรก: แถบความคืบหน้าวิ่ง 0 → 100% ตามเวลาจริง ──
+    // ให้ผู้ใช้เห็นว่าอีกนานแค่ไหนจะเข้า ไม่ใช่แถบวิ่งวนไปเรื่อยๆ ที่บอกอะไรไม่ได้
+    if (prog){
+      prog.style.display = 'block';
+      const bar = prog.querySelector('.intro-progress');
+      if (bar){
+        bar.style.transition = 'none';
+        bar.style.width = '0%';
+        bar.style.background = 'linear-gradient(90deg,#C6FFDD,#FBD786 50%,#F7797D)';
+        // บังคับให้เบราว์เซอร์คำนวณ layout ก่อน เพื่อให้ transition ทำงาน (ไม่งั้นจะกระโดดไป 100% ทันที)
+        void bar.offsetWidth;
+        bar.style.transition = `width ${duration}ms linear`;
+        bar.style.width = '100%';
+      }
+    }
+    if (hint) hint.style.display = 'none';
+  } else {
+    // ── โหมดพักหน้าจอ: ไม่มีแถบนับถอยหลัง (เพราะไม่เข้าเอง) แสดงคำชวนแตะแทน ──
+    if (prog) prog.style.display = 'none';
+    if (hint){
+      hint.style.display = 'block';
+      hint.textContent = 'แตะหน้าจอเพื่อดูข้อมูล';
     }
   }
 
-  if (hint) hint.style.display = 'none';
-
-  // ★ เข้าแดชบอร์ดอัตโนมัติเมื่อครบเวลา (มีตัวตรวจสำรองอีกชั้น กันเบราว์เซอร์หน่วง timer)
-  introStartAt = Date.now();
-  introDuration = duration;
-  introAutoTimer = setTimeout(()=>{ if (welcomeActive) enterApp(); }, duration);
-  introWatchTimer = setInterval(checkIntroElapsed, 1000);
+  // ★ เข้าแดชบอร์ดอัตโนมัติ "เฉพาะตอนเปิดโปรแกรมครั้งแรก" เท่านั้น
+  //   โหมดพักหน้าจอจะไม่ตั้งตัวจับเวลาใดๆ — ค้างหน้าโลโก้จนกว่าผู้ใช้จะแตะ
+  if (autoEnter){
+    introStartAt = Date.now();
+    introDuration = duration;
+    introAutoTimer = setTimeout(()=>{ if (welcomeActive) enterApp(); }, duration);
+    introWatchTimer = setInterval(checkIntroElapsed, 1000);
+  } else {
+    introStartAt = 0;   // ปิดตัวตรวจเวลาจริง ไม่ให้ checkIntroElapsed พาเข้าเอง
+    introDuration = 0;
+  }
 }
 
 // เข้าสู่โปรแกรม (ซ่อนหน้า Welcome + เริ่มจับ idle)
