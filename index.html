@@ -1,5 +1,183 @@
 <!DOCTYPE html>
 <!--
+  ระบบวิเคราะห์ยอดลูกค้า-ยอดรถยนต์ · เวอร์ชัน v98
+  v98 — ปรับหัวแถบเมนูให้โลโก้เด่นขึ้น + ผลตรวจทานระบบทั้งหมด:
+
+  ■ หัวแถบเมนู (Sidebar header)
+   ปัญหาเดิม: โลโก้วางลอยบนพื้นเดียวกับรายการเมนู จึงกลืนไปกับเมนูด้านล่าง
+     ไม่มีอะไรแยกว่าตรงไหนคือ "ส่วนหัวแบรนด์" ตรงไหนคือ "ส่วนนำทาง"
+   วิธีแก้ (4 อย่างประกอบกัน):
+     1. การ์ดพื้นหลังไล่เฉดอ่อนโทนแบรนด์ (ส้ม→ฟ้า จากสีโลโก้จริง) + ขอบบาง
+     2. กรอบสีขาวรองโลโก้ พร้อมเงานุ่มโทนส้ม ทำให้โลโก้ลอยเด่นออกมา
+     3. ขยายโลโก้จาก 30×38 เป็น 34×43 px และกรอบเป็น 3.1rem
+     4. เส้นคั่นไล่ระดับใต้การ์ด แยกส่วนแบรนด์ออกจากเมนูอีกชั้น
+   ★ ใช้ color-mix() ผสมสีแบรนด์กับพื้นหลังในสัดส่วนต่ำ (9–20%)
+     จึงเข้ากับทั้งโหมดสว่างและมืดโดยไม่ต้องเขียน CSS แยกสองชุด
+   ★ ชื่อและคำบรรยายใช้ text-overflow:ellipsis กันข้อความล้นกรอบเมื่อความกว้างเปลี่ยน
+
+  ■ ผลตรวจทานระบบ (ทั้งหมดผ่าน · runtime error 0)
+   • ทุกหน้า × ทุกปี: 7 หน้า × 14 ปี = 98 ชุด ผ่านหมด
+   • รายงานทุกแบบ: 9 รูปแบบ ผ่านหมด
+     (ภาพรวม · รายเดือน · รายสัปดาห์ · ยอดสูงสุด 4 แบบ · 10 อันดับตลอดกาล · ค้นหางาน)
+   • Edge case ฟีเจอร์ใหม่: 14/14 ผ่าน ครอบคลุม
+       - ค้นด้วยสตริงว่าง / ช่องว่างล้วน / null → คืน null ไม่พัง
+       - ★ ค้นด้วยอักขระพิเศษของ regex เช่น "(.*)[\\" → ไม่ทำให้ระบบพัง
+         (ระบบใช้ indexOf ไม่ใช่ RegExp จึงปลอดภัยจาก regex injection โดยธรรมชาติ)
+       - ตัวชี้วัดที่ไม่มีจริง → คืน 0 ไม่ throw
+       - evNormalize รวมชื่อที่สะกดต่างกันได้ถูกต้อง และตัดคำนำหน้า "งาน/งานกิจกรรม" ครบ
+       - baselineNoEvent ปีที่ไม่มีข้อมูล → คืน null
+       - รายงานค้นหางานตอนไม่มีคำค้น → แสดงหน้าแจ้งเตือน ไม่พัง
+  ───────────────────────────────────────────────────────────────
+  ระบบวิเคราะห์ยอดลูกค้า-ยอดรถยนต์ · เวอร์ชัน v97
+  v97 — หน้าใหม่ "ค้นหางานกิจกรรม": ดูว่างานไหนจัดปีใด กี่วัน ทำยอดได้เท่าไหร่
+
+  ■ จุดประสงค์: ใช้วางแผนจัดงานปีถัดไป — ตอบได้ว่างานนี้เคยจัดมากี่ปี ปีไหนได้ผลดีที่สุด
+    และวันจัดงานทำยอดต่างจากวันปกติเท่าไหร่
+
+  ■ ★★ ปัญหาที่ต้องแก้ก่อน: ชื่องานเดียวกันสะกดไม่ตรงกันระหว่างปี (ตรวจจากข้อมูลจริง)
+      "งาน แอ่วตลาดกาดหมั้ว" / "งานแอ่วตลาด กาดหมั้ว" / "งาน แอ๋วตลาด กาดมั้ว" / "งาน แอ้วตลาดกาดมั้ว"
+      "งาน Motor Show" / "งาน MOTOR SHOW"  ·  "งาน นางฟ้ามาขายของมือ 2" / "...มือ2"
+    พบ 9 กลุ่มที่สะกดต่างกัน จาก 250 ชื่องานทั้งหมด
+    ถ้าเทียบข้อความตรงๆ จะหาไม่เจอข้ามปี แล้วสรุปผิดว่า "งานนี้จัดปีเดียว"
+    วิธีแก้: normalize ก่อนเทียบ — ตัดอัญประกาศทุกแบบ ช่องว่าง คำนำหน้า "งาน/งานกิจกรรม"
+      และตัวพิมพ์เล็ก-ใหญ่ออก
+    ★ แต่ตั้งใจ "ไม่รวม" คำที่สะกดต่างกันจริง (หมั้ว/มั้ว/แอ่ว/แอ๋ว/แอ้ว) ให้อัตโนมัติ
+      เพราะการเดาว่าคำไหนคือคำเดียวกันเสี่ยงจับงานคนละงานมารวมกัน ซึ่งอันตรายกว่าการหาไม่เจอ
+      จึงใช้วิธีแนะนำในหน้าจอให้ค้นด้วย "คำสั้น" แทน (ค้น "กาด" เจอครบทุกแบบสะกด)
+
+  ■ สิ่งที่ได้
+   • ค้นหาแบบพิมพ์ไปค้นไป (หน่วง 350ms หลังหยุดพิมพ์ — ไม่คำนวณทุกตัวอักษร)
+   • ปุ่มลัด 8 งานที่จัดกินวันมากที่สุด กดค้นได้ทันทีโดยไม่ต้องนึกชื่อเอง
+   • เลือกวัดผลด้วยตัวชี้วัดใดก็ได้ (ลูกค้า/รถยนต์/จยย./เดลิเวอรี่/แท็กซี่/MRT)
+   • การ์ดสรุป 4 ใบ: พบกี่วัน/กี่ปี · ค่าเฉลี่ยวันจัดงาน · ปีที่ทำได้ดีที่สุด · เทียบวันปกติ
+   • ตารางรายปี: จำนวนวัน · เฉลี่ย/วัน · ยอดรวม · เทียบวันปกติ % · วันที่ทำยอดสูงสุด ·
+     ชื่อที่บันทึกไว้ (แสดงทุกรูปแบบการสะกดที่พบ) · กดที่ปีเพื่อไปดูข้อมูลปีนั้น
+   • รายงาน A4 พร้อมบทสรุปผู้บริหาร: ขอบเขตที่พบ · ค่าเฉลี่ย · ปีที่ดีที่สุด ·
+     ช่วงความต่างระหว่างปี · ผลเทียบวันปกติ
+
+  ■ ★ กำกับข้อจำกัดทางสถิติไว้ทั้งในหน้าจอและรายงาน
+    ตัวเลข "เทียบวันปกติ" เป็น<b>ความสัมพันธ์เชิงสถิติ ไม่ใช่การพิสูจน์เชิงสาเหตุ</b>
+    เพราะงานส่วนใหญ่จัดตรงวันหยุดซึ่งมีผู้ใช้บริการมากอยู่แล้ว
+    ส่วนต่างที่เห็นจึงรวมผลของ "วันหยุด" ไว้ด้วย ไม่ใช่ผลของงานล้วนๆ
+
+  ■ ★★ แถบเตือนขอบเขตข้อมูล (สำคัญมาก)
+    ชุดข้อมูลที่ฝังในไฟล์มีชื่องานเฉพาะ พ.ศ. 2564–2569 (6 ปี)
+    แต่ไฟล์ต้นทางถูกเติมย้อนหลังถึง พ.ศ. 2558 แล้ว (10 ปี)
+    ตรวจจากข้อมูลจริง: ค้น "กาด" ในชีตเจอ 10 ปี แต่ในแอปก่อนซิงค์เจอเพียง 5 ปี
+    และค้น "Motor Show" ในแอปไม่เจอเลย ทั้งที่ชีตมี 5 ปี (2558, 2559, 2561, 2562, 2563)
+    ★ ถ้าไม่เตือน ผู้ใช้จะสรุปผิดว่า "ไม่เคยจัดงานนี้" ซึ่งผิดจากความจริงโดยสิ้นเชิง
+    ระบบจึงขึ้นแถบเหลืองบอกว่ามีข้อมูลงานของปีไหนบ้าง และแนะนำให้กดซิงค์
+  ───────────────────────────────────────────────────────────────
+  ระบบวิเคราะห์ยอดลูกค้า-ยอดรถยนต์ · เวอร์ชัน v96
+  v96 — อุดช่องโหว่ร้ายแรงที่สุดที่เหลืออยู่: การแก้ไขข้อมูลหายโดยไม่มีใครรู้
+
+  ■ ★★★ ปัญหาที่พบจากการตรวจทานโค้ด (ทดสอบยืนยันแล้ว)
+    หน้า "แก้ไขข้อมูล" แก้ตัวเลขได้จริง แต่การแก้ไข:
+      - ไม่ถูกบันทึกลง Google Sheets
+      - ไม่ถูกบันทึกลงเครื่อง (localStorage)
+      - อยู่ในหน่วยความจำเท่านั้น
+    พอถึงรอบซิงค์อัตโนมัติ (ทุก 5 นาที) ข้อมูลสดจากชีตจะเขียนทับทันทีโดยไม่เตือน
+    ★ ผู้ใช้ที่แก้ตัวเลขไป 20–30 วันจะเสียงานทั้งหมดโดยไม่รู้ตัว
+    ที่แย่กว่านั้น: ระบบขึ้นข้อความว่า "บันทึกการแก้ไขแล้ว" ทุกครั้งที่แก้
+    ทำให้เข้าใจผิดสนิทว่าบันทึกลงชีตเรียบร้อยแล้ว
+
+  ■ วิธีแก้ (ป้องกัน 5 ชั้น)
+   1. ติดตามการแก้ไขค้าง (pendingEdits) — จำว่าแก้วันไหน ฟิลด์อะไรไว้บ้าง
+   2. แถบเตือนสีเหลืองบนหน้าแก้ไข บอกจำนวนวันที่ค้าง + ปุ่ม "บันทึกลง Google Sheets"
+      และปุ่ม "ยกเลิกการแก้ไข" (ดึงข้อมูลจริงกลับมา)
+   3. ★ หยุดซิงค์อัตโนมัติชั่วคราวเมื่อมีงานค้าง — ไม่ให้ข้อมูลสดเขียนทับ
+      แสดงสถานะสีส้ม "หยุดซิงค์ชั่วคราว · มีการแก้ไขค้าง N วัน"
+   4. ถ้าผู้ใช้กดซิงค์เอง จะถามยืนยันก่อนว่าการแก้ไขจะหาย (เป็นการตัดสินใจของผู้ใช้เอง)
+   5. เตือนก่อนปิดแท็บ (beforeunload) ถ้ายังมีงานค้าง
+   • ★ แก้ข้อความ toast ให้ตรงความจริง: จาก "บันทึกการแก้ไขแล้ว"
+     เป็น "แก้ไขแล้ว — กดบันทึกลง Google Sheets เพื่อบันทึกถาวร"
+   • ปุ่มบันทึกจะถูกปิดอัตโนมัติเมื่อเชื่อมต่อผ่าน gviz (อ่านได้อย่างเดียว) พร้อมบอกเหตุผล
+
+  ■ ★ ข้อจำกัดที่ระบุให้ชัด: ช่อง "ประเภทวัน" (วันธรรมดา/วันหยุด) แก้ได้แต่บันทึกกลับไม่ได้
+    เพราะไฟล์ Sheets ไม่มีคอลัมน์นี้ — ระบบคำนวณจากวันที่ + ปฏิทินนักขัตฤกษ์เอง
+    การแก้จึงมีผลชั่วคราวบนหน้าจอเท่านั้น ระบบขึ้นข้อความอธิบายให้ทราบเมื่อแก้ช่องนี้
+
+  ■ เพิ่ม setSyncStatus('warn') — สถานะสีส้มสำหรับกรณีที่ "ไม่ใช่ error แต่ต้องสังเกตเห็น"
+  ───────────────────────────────────────────────────────────────
+  ระบบวิเคราะห์ยอดลูกค้า-ยอดรถยนต์ · เวอร์ชัน v95
+  v95 — เพิ่ม "10 อันดับวันที่ทำยอดสูงสุดตลอดกาล" (รวมทุกปี) แยกตามประเภท:
+
+  ■ ★ ทำไมต้องมีตารางนี้เพิ่ม ทั้งที่มี "เทียบทุกปี" อยู่แล้ว
+    สองตารางตอบคนละคำถาม:
+      - เทียบทุกปี     = 1 ปี 1 แถว (เฉพาะวันพีคของปีนั้น) → ตอบว่า "ปีไหนทำได้สูงสุด"
+      - สูงสุดตลอดกาล  = ทุกวันมาแข่งกันหมด → ตอบว่า "งานอะไรทำยอดได้สูงสุดในประวัติศาสตร์"
+    ตารางแบบแรก "มองไม่เห็น" วันที่ยอดสูงมากแต่ไม่ใช่พีคของปีตัวเอง
+    เช่น 12 ส.ค. 2569 (63,977 คน · วันแม่ · งานสำนักหมอเทียนฯ) ไม่ปรากฏในตารางเทียบทุกปี
+    เพราะปี 2569 มี 1 มี.ค. ที่ 75,399 สูงกว่า — ตารางใหม่นี้จึงเติมช่องว่างตรงนั้น
+
+  ■ สิ่งที่เพิ่ม
+   • โหมดที่ 3 ในหน้า "ยอดสูงสุด": ปีที่เลือก · เทียบทุกปี · ★ สูงสุดตลอดกาล
+   • เลือกดูได้ทีละประเภท (ลูกค้า/รถยนต์/จยย./เดลิเวอรี่/แท็กซี่/MRT)
+   • แต่ละอันดับแสดง: ปี พ.ศ. · ยอด · วันที่+ชื่อวัน · ประเภทวัน (วันหยุด/ธรรมดา + นักขัตฤกษ์) ·
+     ★ ชื่องานกิจกรรมของวันนั้น (ซึ่งเป็นสิ่งที่ต้องการทราบ)
+   • กดที่ตัวเลขปีเพื่อสลับไปดูข้อมูลปีนั้นทั้งแอปได้ทันที
+   • สรุปท้ายตาราง: 10 อันดับมาจากกี่ปี · เป็นวันหยุดกี่วัน · มีบันทึกงานกี่วัน
+   • ในโหมดนี้ระบบซ่อนส่วน "รายวัน/รายเดือนของปีที่เลือก" อัตโนมัติ
+     เพราะเป็นคนละขอบเขต ถ้าแสดงพร้อมกันผู้ใช้จะสับสนว่าตัวเลขไหนของช่วงไหน
+
+  ■ รายงาน A4 แบบใหม่ "ยอดสูงสุด — 10 อันดับตลอดกาล (ทุกประเภท)" — 2 หน้า ครบ 6 ประเภท
+    พร้อมบทสรุปผู้บริหารที่คำนวณให้:
+      - วันที่ทำยอดสูงสุดตลอดกาล พร้อมชื่องานในวันนั้น
+      - งานที่ติด 10 อันดับบ่อยที่สุด (บอกได้ว่างานประเภทไหนดึงคนได้จริง)
+      - สัดส่วนวันหยุดใน 10 อันดับ (ยืนยันว่าวันหยุดคือช่วงทำยอดสูงสุด)
+      - ปีที่ครองอันดับ
+
+  ■ ★★ ข้อค้นพบสำคัญจากการตรวจข้อมูลจริงในไฟล์ต้นทาง
+    ไฟล์ Google Sheets ถูก "เติมชื่องานกิจกรรมย้อนหลัง" ไปแล้วตั้งแต่ พ.ศ. 2558
+    (2558–2562 มีชื่องานราว 72–75% ของวัน · 2566–2569 ราว 80–85%)
+    แต่ชุดข้อมูลที่ฝังในไฟล์ HTML ถูกสร้างตอนที่ต้นทางยังไม่ได้เติม จึงมีชื่องานเฉพาะปี 2564 ขึ้นไป
+    ผลคือ: ถ้ายังไม่ได้ซิงค์ วันที่ติดอันดับจากปีเก่าจะขึ้นว่า "ไม่มีบันทึกงานกิจกรรม"
+    ทั้งที่จริงมีข้อมูลอยู่ในชีตแล้ว เช่น
+      13 ม.ค. 2561 (90,449 คน · อันดับ 1 ตลอดกาล) = งาน Kid's Land วันเด็ก
+      11 ม.ค. 2563 (80,032 คน) = งาน วันเด็กดี ซีคอนบางแค
+      1 พ.ค. 2562 (76,627 คน)  = งาน สามก๊ก
+    ระบบจึงขึ้นข้อความเตือนสีเหลืองท้ายตารางเมื่อยังไม่ได้ซิงค์ว่า
+    "ชื่องานของปีเก่าอาจยังไม่ขึ้นครบ กดปุ่มซิงค์ตอนนี้เพื่อดึงข้อมูลล่าสุด"
+    ★ ถ้าไม่บอกตรงนี้ ผู้ใช้จะสรุปผิดว่าวันที่ทำยอดสูงสุดเหล่านั้นไม่ได้จัดงานอะไร
+  ───────────────────────────────────────────────────────────────
+  ระบบวิเคราะห์ยอดลูกค้า-ยอดรถยนต์ · เวอร์ชัน v94
+  v94 — ตัวบอก "ข้อมูลอัปเดตถึงวันไหน" + ผลตรวจทานระบบทั้งหมด:
+
+  ■ ★ ที่มา: ผู้ใช้สงสัยว่า 12 ส.ค. 2569 ควรอยู่อันดับ 11 ในตารางเทียบยอดสูงสุดทุกปี
+    ตรวจสอบกับ Google Sheets จริงแล้วพบว่า:
+      - 12 ส.ค. 2569 มีข้อมูลในชีตแล้ว = 63,977 คน (งานสำนักหมอเทียนฯ · ตรงวันแม่แห่งชาติ)
+      - เป็นอันดับ 4 ของปี 2569 แต่ไม่ใช่วันพีคของปี (วันพีคคือ 1 มี.ค. = 75,399)
+      - ตารางเทียบทุกปีแสดง "1 ปี = 1 แถว" (เฉพาะวันพีคของปีนั้น)
+        ปี 2569 จึงอยู่อันดับ 5 ด้วยยอด 75,399 — 12 ส.ค. ไม่ปรากฏเพราะไม่ใช่วันพีค
+      - เหตุที่คิดว่าเป็นอันดับ 11: 63,977 สูงกว่าอันดับ 11 (พ.ศ.2567 = 63,652) อยู่ 325 คน
+        ถ้าตารางนี้แสดง "ทุกวัน" แทนที่จะเป็น "วันพีคของแต่ละปี" ก็จะอยู่อันดับ 11 จริง
+      ★ สรุป: ระบบคำนวณถูกต้อง ไม่ใช่บั๊ก — เป็นความต่างของนิยามตาราง
+
+  ■ ★★ แต่พบปัญหาที่แท้จริงจากคำถามนี้: ผู้ใช้ไม่มีทางรู้ว่า "ข้อมูลที่เห็นอัปเดตถึงวันไหน"
+    ระบบมีข้อมูล 2 ชั้น — ชุดที่ฝังในไฟล์ (ใช้ตอนออฟไลน์ หยุดที่ 29 ก.ค. 2569)
+    กับชุดสดจาก Google Sheets (ปัจจุบันถึง 14 ส.ค. 2569)
+    ถ้ายังไม่ได้ซิงค์ จะเห็นข้อมูลเก่ากว่าที่กรอกไว้จริงโดยไม่รู้ตัว
+    แล้วเข้าใจผิดว่าระบบคำนวณผิด ทั้งที่จริงคือยังไม่ได้ดึงข้อมูลใหม่มา
+
+  ■ สิ่งที่เพิ่ม
+   • แถบเลือกปีบอก "ข้อมูลถึง <วันที่>" ต่อท้าย และกำกับ "(N วันที่แล้ว)" เมื่อเก่าเกิน 3 วัน
+     แสดงเฉพาะปีล่าสุดที่ยังกรอกข้อมูลอยู่ — ปีเก่าที่จบไปแล้วไม่ต้องบอก
+   • แถบเตือนสีเหลืองเหนือทุกหน้า เมื่อข้อมูลปีล่าสุดเก่าเกิน 3 วัน
+     พร้อมข้อความที่ต่างกันตามสาเหตุ:
+       - ถ้าซิงค์สำเร็จแล้วแต่ข้อมูลยังเก่า → "อาจยังไม่ได้กรอกยอดวันใหม่ที่ไฟล์ต้นทาง"
+       - ถ้ายังไม่ได้เชื่อมต่อเลย → "กดปุ่มซิงค์ตอนนี้เพื่อดึงข้อมูลล่าสุด"
+     ★ เกณฑ์ 3 วัน: การกรอกยอดเป็นรอบ ช้า 1-2 วันถือเป็นเรื่องปกติของงานจริง
+       ตั้งไว้ต่ำกว่านี้จะเตือนบ่อยจนผู้ใช้เลิกสนใจ (alert fatigue)
+
+  ■ ผลตรวจทานระบบ (29 รายการ ผ่านทั้งหมด · runtime error 0)
+   ครอบคลุม: โครงสร้างไฟล์ · ข้อมูล 14 ปี 4,905 วัน · ทุกหน้า × ทุกปี (84 ชุด) ·
+   รายงาน 7 แบบ · กรณีขอบ (ปีไม่มีข้อมูล/หารศูนย์/Infinity/วันที่ไม่มีจริง/rows=null) ·
+   ระบบซิงค์ (retry, gviz responseHandler, ข้อความวินิจฉัย) · ฟอร์มบันทึก (การแบ่งชุด URL)
+
+  ■ ★ ยืนยันจากข้อมูลจริง: พบแถวพิมพ์ผิดในชีต "20/4/2048" (แท็บ 2018)
+    ระบบตัดทิ้งอัตโนมัติเพราะตรวจว่าปีไม่ตรงกับแท็บ — ทดสอบยืนยันแล้วว่าทำงานถูกต้อง
+    ถ้าไม่มีการตรวจนี้ จะเกิด "ปี พ.ศ. 2591" ปลอมโผล่ในระบบ
+  ───────────────────────────────────────────────────────────────
   ระบบวิเคราะห์ยอดลูกค้า-ยอดรถยนต์ · เวอร์ชัน v93
   v93 — นำโลโก้แอปเดิมกลับมา + ยกระดับโลโก้ทั้งสองชุดให้มีมิติ:
 
@@ -1748,6 +1926,42 @@ main .card{max-width:100%;}
   .rank-row__in{grid-template-columns:1.6rem 9rem minmax(8rem,auto) minmax(13rem,auto) minmax(0,1fr);}
 }
 
+/* ═══ R) หัวแถบเมนู — โลโก้แบรนด์ (v98) ═══
+   เป้าหมาย: แยก "ส่วนหัวแบรนด์" ออกจาก "รายการเมนู" ให้เห็นชัดโดยไม่รบกวนสายตา
+   วิธี: การ์ดพื้นหลังอ่อนโทนแบรนด์ + ขอบบาง + เส้นคั่นด้านล่าง + โลโก้ใหญ่ขึ้น
+   ★ ใช้สีจากโลโก้จริง (ส้ม #F47B4B / ฟ้า #62B7E6) ผสมกับพื้นหลังในสัดส่วนต่ำ
+     เพื่อให้เข้ากับทั้งโหมดสว่างและมืดโดยไม่ต้องเขียนแยกสองชุด */
+.sidebar-brand{
+  display:flex;align-items:center;gap:.7rem;
+  padding:.7rem .75rem;margin:-.25rem -.25rem 1.15rem;
+  border-radius:1rem;
+  background:linear-gradient(135deg,
+    color-mix(in srgb, #F47B4B 11%, transparent),
+    color-mix(in srgb, #62B7E6 9%, transparent));
+  border:1px solid color-mix(in srgb, #F47B4B 20%, transparent);
+  position:relative;
+}
+/* เส้นคั่นใต้การ์ด — บอกขอบเขตระหว่างแบรนด์กับเมนูอีกชั้น */
+.sidebar-brand::after{
+  content:'';position:absolute;left:.5rem;right:.5rem;bottom:-.6rem;height:1px;
+  background:linear-gradient(90deg, transparent, var(--line) 20%, var(--line) 80%, transparent);
+}
+.sidebar-brand__mark{
+  flex-shrink:0;display:flex;align-items:center;justify-content:center;
+  width:3.1rem;height:3.1rem;border-radius:.85rem;
+  background:var(--bg-elev);
+  box-shadow:0 3px 10px -4px rgba(244,123,75,.45), inset 0 1px 0 rgba(255,255,255,.5);
+}
+.sidebar-brand__name{
+  font-family:Kanit,sans-serif;font-weight:700;font-size:1.02rem;line-height:1.2;
+  letter-spacing:-.2px;margin:0;
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
+}
+.sidebar-brand__sub{
+  font-size:.7rem;color:var(--ink-soft);margin:.15rem 0 0;line-height:1.3;
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
+}
+
 /* ═══ Q) ฟอร์มบันทึกข้อมูล (v88) ═══ */
 .space-y-1\.5 > * + *{margin-top:.375rem}
 @media (min-width:1024px){ .lg\:grid-cols-3{grid-template-columns:repeat(3,minmax(0,1fr))} }
@@ -1930,14 +2144,17 @@ main .card{max-width:100%;}
        ไม่ขึ้นกับว่า element แม่มี overflow/transform/filter อะไรอยู่ — ปลอดภัยกว่าในระยะยาว
        เมื่อ fixed แล้ว sidebar จะหลุดจาก flow ดังนั้น main ต้องเว้นระยะซ้ายเท่าความกว้าง sidebar -->
   <aside id="appSidebar" class="hidden lg:flex flex-col w-64 shrink-0 border-r card px-5 py-6 app-sidebar" aria-label="เมนูหลัก">
-    <div class="flex items-center gap-3 mb-8">
+    <!-- v98: หัวแถบเมนู — ทำให้โลโก้เด่นขึ้นด้วยการ์ดพื้นหลัง + ขยายขนาด + เส้นคั่น
+         เดิมโลโก้ลอยอยู่บนพื้นเดียวกับเมนู จึงกลืนไปกับรายการเมนูด้านล่าง
+         การใส่การ์ดพื้นหลังอ่อนๆ ช่วยแยก "ส่วนหัวแบรนด์" ออกจาก "ส่วนนำทาง" ให้ชัด -->
+    <div class="sidebar-brand">
       <!-- v90: โลโก้องค์กร Seacon Bangkae (วาดเป็น SVG ตามสัดส่วนและสีจากไฟล์ต้นฉบับ
            ส้ม #F47B4B · ฟ้า #62B7E6 · ส้มอ่อน #FAA74A · ตัวอักษร #3A3A3B)
            ★ ใช้ SVG แทนไฟล์ภาพ เพื่อให้คมชัดทุกความละเอียดหน้าจอและไม่เพิ่มขนาดไฟล์
               (ระบบเป็น single-file HTML การฝังภาพ base64 จะทำให้ไฟล์ใหญ่ขึ้นโดยไม่จำเป็น)
            v93: เพิ่มมิติด้วยไล่เฉดในบล็อก + ไฮไลต์ขอบบน + เงาตกกระทบนุ่ม -->
-      <div class="shrink-0 flex items-center justify-center" style="width:2.75rem;height:2.75rem;">
-        <svg viewBox="0 0 49 62" width="30" height="38" fill="none" role="img">
+      <div class="sidebar-brand__mark">
+        <svg viewBox="0 0 49 62" width="34" height="43" fill="none" role="img">
           <title>โลโก้ Seacon Bangkae</title>
           <defs>
             <linearGradient id="sbLo" gradientUnits="userSpaceOnUse" x1="20" y1="0" x2="31" y2="12">
@@ -1968,8 +2185,8 @@ main .card{max-width:100%;}
         </svg>
       </div>
       <div style="min-width:0;">
-        <p class="font-display font-bold text-base leading-tight">Seacon Bangkae</p>
-        <p class="text-xs" style="color:var(--ink-soft);">ยอดลูกค้า-ยอดรถยนต์</p>
+        <p class="sidebar-brand__name">Seacon Bangkae</p>
+        <p class="sidebar-brand__sub">ยอดลูกค้า-ยอดรถยนต์</p>
       </div>
     </div>
     <nav class="flex flex-col gap-1" id="sideNav" aria-label="เมนูหน้าต่างๆ">
@@ -1984,6 +2201,10 @@ main .card{max-width:100%;}
       <button data-view="peaks" class="nav-btn flex items-center gap-3 px-4 py-2.5 rounded-xl text-sm font-medium text-left">
         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 20h4v-7H4zM10 20h4V4h-4zM16 20h4v-10h-4z"/><path d="M12 2.2l.9 1.9 1.9.9-1.9.9-.9 1.9-.9-1.9L9.2 5l1.9-.9z" fill="currentColor" stroke="none"/></svg>
         ยอดสูงสุด
+      </button>
+      <button data-view="events" class="nav-btn flex items-center gap-3 px-4 py-2.5 rounded-xl text-sm font-medium text-left">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.35-4.35"/></svg>
+        ค้นหางานกิจกรรม
       </button>
       <button data-view="entry" class="nav-btn flex items-center gap-3 px-4 py-2.5 rounded-xl text-sm font-medium text-left">
         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 013 3L7 19l-4 1 1-4z"/></svg>
@@ -2129,6 +2350,16 @@ main .card{max-width:100%;}
       </div>
       <div id="yearChips" class="year-chips"></div>
       <span class="year-bar__info" id="yearBarInfo"></span>
+    </div>
+
+    <!-- v94: แถบเตือนเมื่อข้อมูลของปีล่าสุดเก่าเกิน 3 วัน (อยู่นอก .view จึงเห็นได้ทุกหน้า) -->
+    <div id="staleWarn" style="display:none;align-items:flex-start;gap:.55rem;padding:.65rem .9rem;
+         margin-bottom:1rem;border-radius:.9rem;font-size:.72rem;line-height:1.55;
+         background:color-mix(in srgb, var(--warn-ink) 12%, transparent);
+         border:1px solid color-mix(in srgb, var(--warn-ink) 32%, transparent);color:var(--ink);">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="var(--warn-ink)" stroke-width="2.2"
+           style="flex-shrink:0;margin-top:1px;"><circle cx="12" cy="12" r="9"/><path d="M12 7v6M12 17h.01"/></svg>
+      <span></span>
     </div>
 
     <!-- ===== OVERVIEW VIEW ===== -->
@@ -2388,6 +2619,7 @@ main .card{max-width:100%;}
           <div class="seg" style="flex:1 1 12rem;max-width:20rem;">
             <button id="peakScopeYear" class="peakScopeBtn seg__btn" data-scope="year">ปีที่เลือก</button>
             <button id="peakScopeAll" class="peakScopeBtn seg__btn" data-scope="all">เทียบทุกปี</button>
+            <button id="peakScopeTop" class="peakScopeBtn seg__btn" data-scope="alltime">สูงสุดตลอดกาล</button>
           </div>
           <!-- v85: ปุ่มลัดออกรายงานตรงจากหน้านี้ ไม่ต้องเดินไปหน้ารายงานแล้วเลือก dropdown เอง
                เลือกชนิดรายงานให้อัตโนมัติตามส่วนที่กำลังดูอยู่ (ปีที่เลือก / เทียบทุกปี) -->
@@ -2403,7 +2635,7 @@ main .card{max-width:100%;}
       <div id="peakSummaryStrip" class="mini-grid" style="margin-bottom:1.25rem;"></div>
 
       <!-- ส่วนที่ 1: ยอดสูงสุดรายวัน -->
-      <div class="card rounded-2xl p-5 mb-5 tint-violet">
+      <div id="peakDailyWrap" class="card rounded-2xl p-5 mb-5 tint-violet">
         <div class="sec-head">
           <h3 class="sec-head__t">
             <span class="sec-head__badge" style="background:linear-gradient(135deg,var(--gate-a1),var(--gate-a2));">1</span>
@@ -2424,7 +2656,7 @@ main .card{max-width:100%;}
       </div>
 
       <!-- ส่วนที่ 2: ยอดสูงสุดรายเดือน -->
-      <div class="card rounded-2xl p-5 mb-5 tint-cyan">
+      <div id="peakMonthlyWrap" class="card rounded-2xl p-5 mb-5 tint-cyan">
         <div class="sec-head">
           <h3 class="sec-head__t">
             <span class="sec-head__badge" style="background:linear-gradient(135deg,var(--gate-b1),var(--gate-b2));">2</span>
@@ -2456,6 +2688,85 @@ main .card{max-width:100%;}
           </table>
         </div>
       </div>
+      <!-- v95: 10 อันดับ "วันที่ทำยอดสูงสุดตลอดกาล" — รวมทุกปีเข้าด้วยกัน -->
+      <div id="peakAllTimeWrap" class="card rounded-2xl p-5 hidden tint-amber">
+        <div class="sec-head">
+          <div style="min-width:0;">
+            <h3 class="sec-head__t">
+              <span class="sec-head__badge" style="background:linear-gradient(135deg,#B45309,#F59E0B);">
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M8 21h8M12 17v4M7 4h10v5a5 5 0 01-10 0V4z"/><path d="M7 5H4v2a3 3 0 003 3M17 5h3v2a3 3 0 01-3 3"/></svg>
+              </span>
+              10 อันดับวันที่ทำยอดสูงสุดตลอดกาล
+            </h3>
+          </div>
+          <button class="peakSectionExport card" data-scope="peaksAllTime" title="ออกรายงานเฉพาะส่วนนี้"
+                  style="display:inline-flex;align-items:center;gap:.3rem;font-size:.66rem;font-weight:600;
+                         padding:.3rem .55rem;border-radius:.5rem;white-space:nowrap;">
+            <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M12 15V3M7 10l5 5 5-5M3 17v3a1 1 0 001 1h16a1 1 0 001-1v-3"/></svg>
+            ออกรายงานส่วนนี้
+          </button>
+        </div>
+        <p class="sec-sub">
+          รวมข้อมูลทุกปีเข้าด้วยกัน (พ.ศ. 2556–2569) แล้วหา 10 วันที่ทำยอดสูงสุด
+          เพื่อดูว่า<b>งานอะไรที่ทำยอดได้สูงที่สุด</b>ในประวัติของศูนย์ฯ
+        </p>
+        <div class="chip-row" style="margin-bottom:.9rem;" id="allTimeMetricChips"></div>
+        <div id="allTimeList" class="rank-list"></div>
+        <p id="allTimeNote" style="font-size:.66rem;margin-top:.8rem;line-height:1.55;color:var(--ink-soft);"></p>
+      </div>
+    </section>
+
+    <!-- ===== EVENTS VIEW (v97) — ค้นหางานกิจกรรมและดูผลต่อยอด ===== -->
+    <section id="view-events" class="view">
+      <div class="flex flex-wrap items-end justify-between gap-3 mb-5">
+        <div style="flex:1 1 16rem;min-width:0;">
+          <h1 class="font-display font-bold text-2xl sm:text-3xl">ค้นหางานกิจกรรม</h1>
+          <p class="text-sm mt-1" style="color:var(--ink-soft);">
+            ค้นชื่องานแล้วดูว่าจัดปีไหนบ้าง กี่วัน ทำยอดได้เท่าไหร่ — ใช้วางแผนจัดงานปีถัดไป
+          </p>
+        </div>
+        <button id="evExportBtn" class="card" style="display:inline-flex;align-items:center;gap:.4rem;
+                font-size:.72rem;font-weight:600;padding:.45rem .8rem;border-radius:.7rem;white-space:nowrap;">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><path d="M14 2v6h6"/></svg>
+          ออกรายงาน A4
+        </button>
+      </div>
+
+      <div class="card rounded-2xl p-5 mb-5">
+        <div class="flex flex-wrap items-end gap-3 mb-3">
+          <div style="flex:1 1 18rem;min-width:0;">
+            <label class="text-xs font-semibold block mb-1" style="color:var(--ink-soft);">คำค้น (ชื่องานหรือคำบางส่วน)</label>
+            <input type="text" id="evSearchInput" placeholder="เช่น กาด · วันเด็ก · Motor Show"
+                   class="edit-input text-sm rounded-lg px-3 py-2 w-full" style="border:1px solid var(--line);">
+          </div>
+          <div>
+            <label class="text-xs font-semibold block mb-1" style="color:var(--ink-soft);">วัดผลด้วย</label>
+            <select id="evMetricSelect" class="text-sm px-3 py-2 rounded-xl card" style="border:1px solid var(--line);"></select>
+          </div>
+          <button id="evSearchBtn" class="text-sm font-semibold px-4 py-2 rounded-xl text-white"
+                  style="background:linear-gradient(135deg,var(--gate-a1),var(--gate-a2));">ค้นหา</button>
+        </div>
+        <p class="text-xs mb-2.5" style="color:var(--ink-soft);line-height:1.55;">
+          ค้นแบบไม่สนตัวพิมพ์เล็ก-ใหญ่ เครื่องหมายคำพูด และช่องว่าง ·
+          ★ ชื่องานเดียวกันบางปีสะกดต่างกัน (เช่น "กาดหมั้ว" / "กาดมั้ว" / "แอ๋วตลาด")
+          — <b>ค้นด้วยคำสั้นๆ จะครอบคลุมกว่า</b>
+        </p>
+        <div id="evSuggest" class="chip-row"></div>
+        <!-- ★ v97: เตือนขอบเขตข้อมูลกิจกรรมที่ระบบมีอยู่จริง ณ ขณะนั้น
+             จำเป็นมาก เพราะถ้าไม่บอก ผู้ใช้ค้น "Motor Show" แล้วไม่เจอ
+             จะสรุปผิดว่าไม่เคยจัดงานนี้ ทั้งที่จริงจัดมา 5 ปี แต่ข้อมูลยังไม่ถูกซิงค์เข้ามา -->
+        <div id="evScopeWarn" style="display:none;align-items:flex-start;gap:.5rem;margin-top:.85rem;
+             padding:.6rem .85rem;border-radius:.75rem;font-size:.7rem;line-height:1.55;
+             background:color-mix(in srgb, var(--warn-ink) 12%, transparent);
+             border:1px solid color-mix(in srgb, var(--warn-ink) 30%, transparent);color:var(--ink);">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--warn-ink)" stroke-width="2.2"
+               style="flex-shrink:0;margin-top:1px;"><circle cx="12" cy="12" r="9"/><path d="M12 7v6M12 17h.01"/></svg>
+          <span></span>
+        </div>
+      </div>
+
+      <div id="evSummary" class="mini-grid" style="margin-bottom:1.25rem;"></div>
+      <div id="evResult"></div>
     </section>
 
     <!-- ===== ENTRY VIEW (v88) — บันทึกข้อมูลรายวันลง Google Sheets โดยตรง ===== -->
@@ -2537,15 +2848,33 @@ main .card{max-width:100%;}
     <!-- ===== DATA EDIT VIEW ===== -->
     <section id="view-data" class="view">
       <div class="flex flex-wrap items-end justify-between gap-3 mb-5">
-        <div>
+        <div style="flex:1 1 16rem;min-width:0;">
           <h1 class="font-display font-bold text-2xl sm:text-3xl">แก้ไขข้อมูล</h1>
           <p class="text-sm mt-1" style="color:var(--ink-soft);">แก้ไขตัวเลขรายวันได้โดยตรง ระบบจะคำนวณสถิติใหม่ทันที</p>
         </div>
-        <div class="flex gap-2">
+        <div class="flex flex-wrap gap-2">
           <select id="dataEditMonthSelect" class="text-sm px-3 py-2 rounded-xl card"></select>
           <button id="addRowBtn" class="text-sm px-4 py-2 rounded-xl font-medium text-white" style="background:linear-gradient(135deg,var(--gate-c1),var(--gate-c2));">+ เพิ่มวัน</button>
           <button id="downloadCsvBtn" class="text-sm px-4 py-2 rounded-xl font-medium card">ดาวน์โหลด CSV</button>
         </div>
+      </div>
+
+      <!-- ★★ v96: แถบสถานะการแก้ไข — จุดที่เคยเป็นช่องโหว่ร้ายแรงที่สุดของระบบ
+           ปัญหาเดิม: หน้านี้แก้ตัวเลขได้ แต่การแก้ "อยู่ในหน่วยความจำเท่านั้น"
+             ไม่ถูกบันทึกลง Google Sheets และไม่ถูกบันทึกลงเครื่อง
+             พอถึงรอบซิงค์อัตโนมัติ (ทุก 5 นาที) ข้อมูลสดจะเขียนทับทันทีโดยไม่เตือน
+             ผู้ใช้ที่แก้ตัวเลขไปครึ่งชั่วโมงจะเสียงานทั้งหมดโดยไม่รู้ตัว
+           แก้: นับจำนวนที่แก้ค้างไว้ + ปุ่มบันทึกกลับ Sheets + หยุดซิงค์อัตโนมัติระหว่างมีงานค้าง -->
+      <div id="editDirtyBar" style="display:none;align-items:center;flex-wrap:wrap;gap:.6rem;padding:.7rem .95rem;
+           margin-bottom:1rem;border-radius:.9rem;font-size:.75rem;
+           background:color-mix(in srgb, var(--warn-ink) 13%, transparent);
+           border:1px solid color-mix(in srgb, var(--warn-ink) 34%, transparent);color:var(--ink);">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="var(--warn-ink)" stroke-width="2.2"
+             style="flex-shrink:0;"><circle cx="12" cy="12" r="9"/><path d="M12 7v6M12 17h.01"/></svg>
+        <span id="editDirtyMsg" style="flex:1 1 14rem;min-width:0;line-height:1.5;"></span>
+        <button id="editSaveBtn" class="text-xs font-semibold px-3 py-2 rounded-lg text-white shrink-0"
+                style="background:linear-gradient(135deg,var(--gate-a1),var(--gate-a2));">บันทึกลง Google Sheets</button>
+        <button id="editDiscardBtn" class="text-xs font-medium px-3 py-2 rounded-lg card shrink-0">ยกเลิกการแก้ไข</button>
       </div>
       <div class="card rounded-2xl p-5 overflow-x-auto scrollbar-thin">
         <table class="dash-table text-sm" id="editTable">
@@ -2581,6 +2910,8 @@ main .card{max-width:100%;}
               <option value="peaksDaily">ยอดสูงสุด — เฉพาะรายวัน</option>
               <option value="peaksMonthly">ยอดสูงสุด — เฉพาะรายเดือน</option>
               <option value="peaksAll">ยอดสูงสุด — เทียบทุกปี (2556–2569)</option>
+              <option value="peaksAllTime">ยอดสูงสุด — 10 อันดับตลอดกาล (ทุกประเภท)</option>
+              <option value="events">ผลค้นหางานกิจกรรม (ตามคำค้นล่าสุด)</option>
             </select>
           </div>
           <div id="reportMonthWrap" class="hidden">
@@ -2938,6 +3269,9 @@ const state = {
   selectedWeek: 0, // 0 = ทั้งเดือน, 1..n = สัปดาห์ที่ n
   peakScope: 'year',      // v81: 'year' = ปีที่เลือก · 'all' = ตารางเทียบทุกปี
   peakMetric: 'customer', // ประเภทที่กำลังดูในตารางเทียบทุกปี
+  allTimeMetric: 'customer', // v95: ประเภทที่เลือกในหน้า "สูงสุดตลอดกาล"
+  evQuery: '',              // v97: คำค้นในหน้าค้นหางานกิจกรรม
+  evMetric: 'customer',     // ตัวชี้วัดที่ใช้วัดผลของงาน
   top10Metric: 'customer', // v81.1: ประเภทที่เลือกในการ์ด "10 อันดับ" บนแดชบอร์ดรวม
   top10Mode: 'peak',       // 'peak' = วันพีคของปี · 'total' = ยอดรวมทั้งปี
   wdweScope: 'month',      // v87: ช่วงของการ์ดวันธรรมดา/วันหยุด — 'week' | 'month' | 'year'
@@ -3977,6 +4311,70 @@ function renderDataEditSelect(){
   sel.innerHTML = keys.map(k => `<option value="${k}" ${k===cur?'selected':''}>${THAI_MONTH_FULL[state.data[k].monthNum]} ${beYear(state.data[k].year)}</option>`).join('');
 }
 
+// ═══════════════════════════════════════════════════════════════
+// v96: ติดตาม "การแก้ไขที่ยังไม่ได้บันทึก" ในหน้าแก้ไขข้อมูล
+// ───────────────────────────────────────────────────────────────
+// ★ ปัญหาที่แก้: เดิมหน้าแก้ไขเปลี่ยนค่าใน state เท่านั้น ไม่ได้เขียนกลับที่ไหนเลย
+//   พอถึงรอบซิงค์อัตโนมัติ ข้อมูลสดจาก Sheets จะเขียนทับทันทีโดยไม่เตือน = งานหาย
+//   ระบบใหม่: จำว่าแก้อะไรไว้บ้าง → หยุดซิงค์อัตโนมัติชั่วคราว → ให้กดบันทึกกลับ Sheets
+// key ของ Map = "YYYY-MM-DD" · value = { date, customer, car, ... , note }
+// ═══════════════════════════════════════════════════════════════
+const pendingEdits = new Map();
+
+function markEdited(iso, field, value){
+  const rec = pendingEdits.get(iso) || { date: iso };
+  rec[field] = value;
+  pendingEdits.set(iso, rec);
+  renderEditDirtyBar();
+}
+
+function renderEditDirtyBar(){
+  const bar = document.getElementById('editDirtyBar');
+  if (!bar) return;
+  const n = pendingEdits.size;
+  bar.style.display = n ? 'flex' : 'none';
+  if (!n) return;
+  const canSave = (lastSyncSource === 'appsscript');
+  document.getElementById('editDirtyMsg').innerHTML =
+    `แก้ไขค้างไว้ <b>${n} วัน</b> ที่ยังไม่ได้บันทึกลง Google Sheets · ` +
+    (canSave
+      ? 'ระบบหยุดซิงค์อัตโนมัติไว้ชั่วคราวเพื่อไม่ให้ข้อมูลสดเขียนทับงานที่แก้'
+      : '<span style="color:var(--down);font-weight:600;">บันทึกไม่ได้ในขณะนี้</span> — การบันทึกต้องเชื่อมต่อผ่าน Apps Script กด "ตรวจสอบการเชื่อมต่อ" เพื่อดูสาเหตุ');
+  const btn = document.getElementById('editSaveBtn');
+  if (btn){ btn.disabled = !canSave; btn.style.opacity = canSave ? '1' : '.5'; }
+}
+
+/** บันทึกการแก้ไขทั้งหมดกลับเข้า Google Sheets */
+async function saveEditsToSheet(){
+  if (!pendingEdits.size) return;
+  const btn = document.getElementById('editSaveBtn');
+  const records = Array.from(pendingEdits.values());
+  btn.disabled = true; btn.style.opacity = '.6'; btn.textContent = 'กำลังบันทึก...';
+  try {
+    const res = await saveRecordsToSheet(records);
+    pendingEdits.clear();
+    renderEditDirtyBar();
+    showToast(`บันทึก ${res.updatedCount + res.createdCount} วันลง Google Sheets สำเร็จ`, 'success');
+    await syncAllFromSheets(true);   // ดึงข้อมูลจริงกลับมายืนยันว่าบันทึกถูกต้อง
+    renderEditTable();
+  } catch(err){
+    showToast('บันทึกไม่สำเร็จ: ' + err.message, 'error');
+  } finally {
+    btn.disabled = false; btn.style.opacity = '1'; btn.textContent = 'บันทึกลง Google Sheets';
+  }
+}
+
+/** ทิ้งการแก้ไขทั้งหมด แล้วดึงข้อมูลจริงกลับมา */
+async function discardEdits(){
+  if (!pendingEdits.size) return;
+  if (!confirm(`ยกเลิกการแก้ไข ${pendingEdits.size} วัน และโหลดข้อมูลจริงจาก Google Sheets กลับมาใช่หรือไม่?`)) return;
+  pendingEdits.clear();
+  renderEditDirtyBar();
+  await syncAllFromSheets(true);
+  renderEditTable();
+  showToast('ยกเลิกการแก้ไขแล้ว', 'info');
+}
+
 function renderEditTable(){
   renderDataEditSelect();
   const key = document.getElementById('dataEditMonthSelect').value;
@@ -4009,6 +4407,7 @@ function renderEditTable(){
     </tr>`;
   }).join('');
   document.getElementById('editTableBody').innerHTML = rows;
+  renderEditDirtyBar();   // v96: อัปเดตแถบสถานะงานค้างทุกครั้งที่วาดตารางใหม่
 
   document.querySelectorAll('#editTableBody [data-field]').forEach(el=>{
     el.addEventListener('change', (e)=>{
@@ -4030,11 +4429,20 @@ function renderEditTable(){
           showToast('ค่าต้องเป็นตัวเลขบวกเท่านั้น — ปรับเป็น 0 ให้อัตโนมัติ', 'error');
         }
         row[field] = n;
+        markEdited(row.date, field, n);   // v96: จำไว้ว่าต้องบันทึกกลับ Sheets
         e.target.value = n; // สะท้อนค่าที่ถูกปรับกลับไปที่ช่องกรอก
       } else {
         row[field] = val;
+        // v96: เฉพาะ "งานกิจกรรม" ที่บันทึกกลับ Sheets ได้
+        //   ส่วน "ประเภทวัน" (วันธรรมดา/วันหยุด) ระบบคำนวณจากวันที่ + ปฏิทินนักขัตฤกษ์เอง
+        //   ไม่มีคอลัมน์นี้ในชีต จึงบันทึกกลับไม่ได้ — แก้ได้เฉพาะเพื่อดูผลชั่วคราวบนหน้าจอ
+        if (field === 'note') markEdited(row.date, 'note', val);
       }
-      showToast('บันทึกการแก้ไขแล้ว — สถิติคำนวณใหม่อัตโนมัติ', 'success');
+      // ★ v96: เปลี่ยนข้อความให้ตรงความจริง — เดิมเขียนว่า "บันทึกการแก้ไขแล้ว"
+      //   ซึ่งทำให้เข้าใจผิดว่าบันทึกลง Google Sheets แล้ว ทั้งที่ยังอยู่แค่ในหน่วยความจำ
+      showToast(field === 'section'
+        ? 'ปรับประเภทวันชั่วคราวบนหน้าจอ (ไม่บันทึกลงชีต — ระบบคำนวณจากวันที่ให้เอง)'
+        : 'แก้ไขแล้ว — กด "บันทึกลง Google Sheets" เพื่อบันทึกถาวร', 'info');
     });
   });
   document.querySelectorAll('#editTableBody [data-delrow]').forEach(btn=>{
@@ -4545,8 +4953,9 @@ function acceptYears(incoming){
 }
 
 function setSyncStatus(status, text){
-  // status: 'ok' | 'error' | 'syncing' | 'idle'
-  const colors = { ok:'#059669', error:'#DC2626', syncing:'#F59E0B', idle:'#94A3B8' };
+  // status: 'ok' | 'error' | 'syncing' | 'warn' | 'idle'
+  // v96: เพิ่ม warn — ใช้ตอนหยุดซิงค์ชั่วคราวเพราะมีการแก้ไขค้าง (ไม่ใช่ error แต่ต้องสังเกตเห็น)
+  const colors = { ok:'#059669', error:'#DC2626', syncing:'#F59E0B', warn:'#D97706', idle:'#94A3B8' };
   ['syncStatusDot','syncStatusDotMobile'].forEach(id=>{
     const el = document.getElementById(id);
     if (el) el.style.background = colors[status] || colors.idle;
@@ -4688,6 +5097,21 @@ function explainSyncError(asErr, gvErr){
 
 async function syncAllFromSheets(silent){
   if (syncInProgress) return;
+  // ★★ v96: กันข้อมูลสดเขียนทับงานที่ผู้ใช้แก้ค้างไว้แต่ยังไม่ได้บันทึก
+  //   เดิมรอบซิงค์อัตโนมัติ (ทุก 5 นาที) จะทับทันทีโดยไม่เตือน = งานที่แก้หายทั้งหมด
+  //   ระบบจึงข้ามรอบซิงค์อัตโนมัติไว้จนกว่าจะบันทึกหรือยกเลิกการแก้ไข
+  //   แต่ถ้าผู้ใช้กดซิงค์เอง (silent=false) ให้ถามยืนยันก่อน — เป็นการตัดสินใจของผู้ใช้เอง
+  if (typeof pendingEdits !== 'undefined' && pendingEdits.size > 0){
+    if (silent){
+      console.info(`ข้ามรอบซิงค์อัตโนมัติ: มีการแก้ไขค้างอยู่ ${pendingEdits.size} วัน`);
+      setSyncStatus('warn', `หยุดซิงค์ชั่วคราว · มีการแก้ไขค้าง ${pendingEdits.size} วัน`);
+      return;
+    }
+    if (!confirm(`มีการแก้ไขค้างอยู่ ${pendingEdits.size} วันที่ยังไม่ได้บันทึกลง Google Sheets\n\n` +
+                 `หากซิงค์ตอนนี้ ข้อมูลจากชีตจะเขียนทับและการแก้ไขจะหายไป\n\nต้องการซิงค์ต่อหรือไม่?`)) return;
+    pendingEdits.clear();
+    if (typeof renderEditDirtyBar === 'function') renderEditDirtyBar();
+  }
   syncInProgress = true;
   setSyncStatus('syncing', 'กำลังซิงค์ข้อมูล...');
   let changedYears = 0, source = null, detail = '';
@@ -4951,16 +5375,19 @@ function initSync(){
 // ═══════════════════════════════════════════════════════════════
 const VIEW_LABELS = {
   overview: 'ภาพรวมทั้งหมด', monthly: 'รายเดือน', peaks: 'ยอดสูงสุด',
+  events: 'ค้นหางานกิจกรรม',
   entry: 'บันทึกข้อมูลลง Google Sheets', data: 'แก้ไขข้อมูล', report: 'รายงานสรุป (Export)'
 };
 // ป้ายสั้นสำหรับ bottom nav มือถือ (พื้นที่จำกัด — 5 หน้าแล้ว จึงต้องสั้นมาก)
 const BOTTOM_NAV_LABELS = {
-  overview: 'ภาพรวม', monthly: 'รายเดือน', peaks: 'ยอดสูงสุด', entry: 'บันทึก', data: 'แก้ไข', report: 'รายงาน'
+  overview: 'ภาพรวม', monthly: 'รายเดือน', peaks: 'ยอดสูงสุด', events: 'ค้นหางาน',
+  entry: 'บันทึก', data: 'แก้ไข', report: 'รายงาน'
 };
 const NAV_ICON_SVGS = {
   overview: '<rect x="3" y="3" width="7" height="9" rx="1.5"/><rect x="14" y="3" width="7" height="5" rx="1.5"/><rect x="14" y="12" width="7" height="9" rx="1.5"/><rect x="3" y="16" width="7" height="5" rx="1.5"/>',
   monthly: '<rect x="3" y="4" width="18" height="17" rx="2"/><path d="M3 9h18M8 2v4M16 2v4"/>',
   peaks: '<path d="M4 20h4v-7H4zM10 20h4V4h-4zM16 20h4v-10h-4z"/><path d="M12 2.2l.9 1.9 1.9.9-1.9.9-.9 1.9-.9-1.9L9.2 5l1.9-.9z" fill="currentColor" stroke="none"/>',
+  events: '<circle cx="11" cy="11" r="7"/><path d="M21 21l-4.35-4.35"/>',
   entry: '<path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 013 3L7 19l-4 1 1-4z"/>',
   data: '<path d="M4 5h16M4 12h16M4 19h16"/>',
   report: '<path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><path d="M14 2v6h6"/>'
@@ -4992,15 +5419,62 @@ function renderYearChips(){
     catch(e){ wrap.scrollLeft = activeChip.offsetLeft - wrap.clientWidth/2 + activeChip.offsetWidth/2; }
   }
 
-  // สรุปย่อ: จำนวนเดือน/วันของปีที่เลือก (เห็นทันทีว่าปีนั้นข้อมูลครบไหม)
+  // สรุปย่อ: จำนวนเดือน/วัน + ★ v94: "ข้อมูลอัปเดตถึงวันไหน"
+  // ═══════════════════════════════════════════════════════════════
+  // ★ เหตุผลที่ต้องบอกวันล่าสุด: ระบบมีข้อมูล 2 ชั้น —
+  //   (1) ชุดที่ฝังในไฟล์ ใช้ตอนออฟไลน์ (หยุดที่วันที่ตอนสร้างไฟล์)
+  //   (2) ชุดสดที่ดึงจาก Google Sheets ตอนซิงค์
+  //   ถ้ายังไม่ได้ซิงค์ ผู้ใช้จะเห็นข้อมูลเก่ากว่าที่กรอกไว้ในชีตจริงโดยไม่รู้ตัว
+  //   แล้วเข้าใจผิดว่า "ระบบคำนวณผิด" ทั้งที่จริงคือยังไม่ได้ดึงข้อมูลใหม่มา
+  //   จึงต้องบอกให้ชัดว่าตัวเลขที่เห็นครอบคลุมถึงวันไหน
   const bundle = state.years[state.year] || {};
   const days = Object.keys(bundle).reduce((n,k)=>n+bundle[k].daily.length, 0);
   const months = Object.keys(bundle).length;
-  const txt = years.length ? `พ.ศ. ${ceToBe(state.year)} · ${months} เดือน · ${fmt(days)} วัน` : 'ยังไม่มีข้อมูล';
+  let txt = years.length ? `พ.ศ. ${ceToBe(state.year)} · ${months} เดือน · ${fmt(days)} วัน` : 'ยังไม่มีข้อมูล';
+
+  // แสดงวันล่าสุดเฉพาะ "ปีล่าสุด" ที่ยังกรอกข้อมูลอยู่ — ปีเก่าจบไปแล้วไม่ต้องบอก
+  const latestYear = years.length ? years[years.length-1] : null;
+  if (state.year === latestYear){
+    const dd = allDaysOfYear(state.year);
+    if (dd.length){
+      const lastISO = dd[dd.length-1].date;
+      const today = new Date(); today.setHours(0,0,0,0);
+      const gap = Math.round((today - new Date(lastISO + 'T00:00:00')) / 86400000);
+      txt += ` · ข้อมูลถึง ${formatThaiDateShort(lastISO)}`;
+      if (gap > 3) txt += ` (${gap} วันที่แล้ว)`;
+    }
+  }
   ['yearBarInfo','yearBarInfoSm'].forEach(id => {
     const el = document.getElementById(id);
     if (el) el.textContent = txt;
   });
+
+  // ── แถบเตือนเมื่อข้อมูลของปีล่าสุดเก่าเกิน 3 วัน ──
+  // ★ เกณฑ์ 3 วัน: การกรอกยอดเป็นรอบ ช้า 1-2 วันถือเป็นเรื่องปกติ
+  //   แต่เกิน 3 วันมักหมายถึงยังไม่ได้ซิงค์ หรือยังไม่ได้กรอกที่ไฟล์ต้นทาง
+  //   ซึ่งทั้งสองกรณีทำให้ผู้ใช้เห็นตัวเลขไม่ตรงกับความจริงโดยไม่รู้ตัว
+  const staleBar = document.getElementById('staleWarn');
+  if (staleBar){
+    let show = false, msg = '';
+    if (state.year === latestYear){
+      const dd2 = allDaysOfYear(state.year);
+      if (dd2.length){
+        const lastISO2 = dd2[dd2.length-1].date;
+        const today2 = new Date(); today2.setHours(0,0,0,0);
+        const gap2 = Math.round((today2 - new Date(lastISO2 + 'T00:00:00')) / 86400000);
+        if (gap2 > 3){
+          show = true;
+          msg = `ข้อมูลล่าสุดในระบบคือ <b>${formatThaiDateShort(lastISO2)}</b> (${gap2} วันที่แล้ว) — ` +
+                (lastSyncSource
+                  ? 'อาจยังไม่ได้กรอกยอดวันใหม่ที่ไฟล์ต้นทาง หรือกดซิงค์อีกครั้งเพื่อดึงข้อมูลล่าสุด'
+                  : 'ยังไม่ได้เชื่อมต่อ Google Sheets ในรอบนี้ — กดปุ่ม "ซิงค์ตอนนี้" เพื่อดึงข้อมูลล่าสุด');
+        }
+      }
+    }
+    staleBar.style.display = show ? 'flex' : 'none';
+    const sp = staleBar.querySelector('span:last-child');
+    if (show && sp) sp.innerHTML = msg;
+  }
 }
 
 // ═══════════════════════════════════════════════════════════════
@@ -5208,10 +5682,121 @@ function renderPeaks(){
       }).join('')
     : '<p class="text-sm py-4 text-center" style="color:var(--ink-soft);">ปีนี้ยังไม่มีข้อมูลให้จัดอันดับ</p>';
 
-  // ── ตารางเทียบทุกปี ──
+  // ── ส่วนเสริมตามโหมดที่เลือก ──
   const wrap = document.getElementById('peakAllYearsWrap');
   if (state.peakScope === 'all'){ wrap.classList.remove('hidden'); renderPeakAllYears(); }
   else wrap.classList.add('hidden');
+
+  const atWrap = document.getElementById('peakAllTimeWrap');
+  if (atWrap){
+    if (state.peakScope === 'alltime'){ atWrap.classList.remove('hidden'); renderAllTimeTop(); }
+    else atWrap.classList.add('hidden');
+  }
+  // ★ ในโหมด "สูงสุดตลอดกาล" ซ่อนสองส่วนที่ผูกกับปีที่เลือก (รายวัน/รายเดือนของปีนั้น)
+  //   เพราะเป็นคนละขอบเขตกัน ถ้าแสดงพร้อมกันผู้ใช้จะสับสนว่าตัวเลขไหนของช่วงไหน
+  const yearOnly = (state.peakScope !== 'alltime');
+  ['peakDailyWrap','peakMonthlyWrap'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.style.display = yearOnly ? '' : 'none';
+  });
+  const stripEl = document.getElementById('peakSummaryStrip');
+  if (stripEl) stripEl.style.display = yearOnly ? '' : 'none';
+}
+
+// ═══════════════════════════════════════════════════════════════
+// v95: 10 อันดับ "วันที่ทำยอดสูงสุดตลอดกาล" (รวมทุกปี)
+// ───────────────────────────────────────────────────────────────
+// ★ ต่างจากตาราง "เทียบทุกปี" ตรงที่:
+//     เทียบทุกปี   = 1 ปี 1 แถว (เฉพาะวันพีคของปีนั้น) → ตอบว่า "ปีไหนเก่งสุด"
+//     สูงสุดตลอดกาล = ทุกวันมาแข่งกันหมด → ตอบว่า "งานอะไรทำยอดได้สูงสุดในประวัติศาสตร์"
+//   ตารางแบบแรกจะไม่แสดงวันที่ยอดสูงมากแต่ไม่ใช่พีคของปีตัวเอง
+//   เช่น 12 ส.ค. 2569 (63,977) ไม่ปรากฏ เพราะปีนั้นมี 1 มี.ค. ที่ 75,399 สูงกว่า
+//   ส่วนตารางนี้จะเห็นครบทุกวันตามยอดจริง
+// ═══════════════════════════════════════════════════════════════
+function computeAllTimeTop(metric, limit){
+  const rows = [];
+  availableYears().forEach(y => {
+    allDaysOfYear(y).forEach(d => {
+      const v = Number(d[metric]) || 0;
+      if (v > 0) rows.push({ yearCE:y, date:d.date, value:v, note:d.note || '',
+                             section:d.section, holiday:d.holiday || null });
+    });
+  });
+  rows.sort((a,b) => b.value - a.value || a.date.localeCompare(b.date));
+  return rows.slice(0, limit || 10);
+}
+
+function renderAllTimeTop(){
+  const listEl = document.getElementById('allTimeList');
+  if (!listEl) return;
+
+  // ชิปเลือกประเภท — เฉพาะที่มีข้อมูลจริง
+  const usable = METRIC_KEYS.filter(k =>
+    availableYears().some(y => allDaysOfYear(y).some(d => (Number(d[k]) || 0) > 0)));
+  if (!usable.includes(state.allTimeMetric)) state.allTimeMetric = usable[0] || 'customer';
+
+  const chips = document.getElementById('allTimeMetricChips');
+  chips.innerHTML = usable.map(k => {
+    const on = (k === state.allTimeMetric);
+    return `<button data-metric="${k}" class="chip" aria-pressed="${on}"
+      style="${on ? `background:${METRIC_COLOR[k].a};color:#fff;box-shadow:0 4px 12px -6px ${METRIC_COLOR[k].a};`
+                  : 'background:var(--bg);color:var(--ink-soft);border:1px solid var(--line);'}">
+      <span class="chip__dot" style="background:${on ? '#fff' : METRIC_COLOR[k].a};"></span>
+      ${METRIC_COLOR[k].label}</button>`;
+  }).join('');
+  chips.querySelectorAll('[data-metric]').forEach(b => {
+    b.addEventListener('click', () => { state.allTimeMetric = b.dataset.metric; renderAllTimeTop(); });
+  });
+
+  const key = state.allTimeMetric;
+  const M = METRIC_COLOR[key];
+  const ink = metricInk(key);
+  const rows = computeAllTimeTop(key, 10);
+
+  if (!rows.length){
+    listEl.innerHTML = '<p class="text-sm py-4 text-center" style="color:var(--ink-soft);">ยังไม่มีข้อมูลของประเภทนี้</p>';
+    document.getElementById('allTimeNote').textContent = '';
+    return;
+  }
+
+  const max = rows[0].value;
+  listEl.innerHTML = rows.map((r, i) => {
+    const isCur = (r.yearCE === state.year);
+    const dayTag = r.section === 'weekend' ? 'วันหยุด' : 'วันธรรมดา';
+    const hol = r.holiday ? ` · ${esc(r.holiday)}` : '';
+    // ชื่อแถว = ปี (กดเพื่อสลับไปดูปีนั้น) — ให้เชื่อมโยงไปดูรายละเอียดต่อได้
+    const nameHtml = `<button data-jumpyear="${r.yearCE}" class="rank-year-btn"
+        title="แตะเพื่อดูข้อมูลปี ${ceToBe(r.yearCE)}"
+        style="color:${isCur ? ink : 'var(--ink)'};">${ceToBe(r.yearCE)}${isCur ? ' ●' : ''}</button>`;
+    const when = `<span style="color:${thaiDayColor(r.date)};font-weight:700;">${thaiWeekday(r.date)}</span>
+                  <span>${formatThaiDateShort(r.date)}</span>
+                  <span class="rank-tag" style="background:color-mix(in srgb, ${M.a} 18%, transparent);color:${ink};">${dayTag}${hol}</span>`;
+    const act = r.note
+      ? `<span title="${esc(cleanActivity(r.note))}">✦ ${esc(cleanActivity(r.note))}</span>`
+      : '<span class="sp">— ไม่มีบันทึกงานกิจกรรม</span>';
+    return peakRowHTML(i+1, { value:r.value, unit:M.unit, color:M.a, ink }, max,
+      when, act, { nameHtml, nameInk:'inherit', active:isCur });
+  }).join('');
+
+  listEl.querySelectorAll('[data-jumpyear]').forEach(b => {
+    b.addEventListener('click', () => { setActiveYear(Number(b.dataset.jumpyear)); });
+  });
+
+  // สรุปข้อค้นพบท้ายตาราง — แปลตัวเลขให้เป็นข้อมูลที่ใช้ต่อได้
+  const withAct = rows.filter(r => (r.note || '').trim()).length;
+  const weCount = rows.filter(r => r.section === 'weekend').length;
+  const yrs = [...new Set(rows.map(r => ceToBe(r.yearCE)))].sort();
+  let note = `รวมทุกปีเข้าด้วยกันแล้วจัดอันดับใหม่ · 10 อันดับนี้มาจาก ${yrs.length} ปี (${yrs.join(', ')}) · ` +
+             `เป็นวันหยุด ${weCount} วัน · มีบันทึกงานกิจกรรม ${withAct} วัน`;
+  // ★ ถ้ายังไม่ได้ซิงค์ ชื่องานของปีเก่าจะยังไม่ขึ้น เพราะชุดข้อมูลที่ฝังในไฟล์
+  //   ถูกสร้างตอนที่ไฟล์ต้นทางยังไม่ได้เติมชื่องานย้อนหลัง — ต้องดึงข้อมูลสดจึงจะเห็นครบ
+  //   ถ้าไม่บอกตรงนี้ ผู้ใช้จะคิดว่าวันนั้นไม่ได้จัดงานจริง ซึ่งไม่ใช่
+  if (withAct < rows.length){
+    note += lastSyncSource
+      ? ` <span style="opacity:.85;">(ที่เหลือไม่มีชื่องานบันทึกไว้ในไฟล์ต้นทาง)</span>`
+      : ` <span style="color:var(--warn-ink);font-weight:600;">— ยังไม่ได้ซิงค์ข้อมูล ชื่องานของปีเก่าอาจยังไม่ขึ้นครบ กดปุ่ม "ซิงค์ตอนนี้" เพื่อดึงข้อมูลล่าสุด</span>`;
+  }
+  document.getElementById('allTimeNote').innerHTML = note;
 }
 
 // ── ตารางเทียบยอดสูงสุดทุกปี (เลือกดูทีละประเภท) ──
@@ -5941,6 +6526,236 @@ function safeRender(name, fn){
   }
 }
 
+// ═══════════════════════════════════════════════════════════════
+// v97: ค้นหางานกิจกรรม — ดูว่างานไหนจัดปีใด กี่วัน ทำยอดได้เท่าไหร่
+// ───────────────────────────────────────────────────────────────
+// ★ ปัญหาที่ต้องจัดการ: ข้อมูลจริงสะกดชื่องานไม่สม่ำเสมอระหว่างปี เช่น
+//     "งาน แอ่วตลาดกาดหมั้ว" / "งานแอ่วตลาด กาดหมั้ว" / "งาน แอ๋วตลาด กาดหมั้ว" / "กาดมั้ว"
+//     "งาน Motor Show" / "งาน MOTOR SHOW"
+//   ถ้าเทียบข้อความตรงๆ จะหาไม่เจอข้ามปี ทำให้สรุปผิดว่างานนั้นจัดปีเดียว
+//   จึงต้อง normalize ก่อนเทียบ: ตัดอัญประกาศ ช่องว่าง คำนำหน้า "งาน/งานกิจกรรม" และตัวพิมพ์
+//   แต่ยัง "ไม่รวมคำที่สะกดต่างกันจริงๆ" (หมั้ว/มั้ว) เพราะการเดาว่าคำไหนคือคำเดียวกัน
+//   เสี่ยงจับงานคนละงานมารวมกัน — จึงแนะนำให้ผู้ใช้ค้นด้วยคำสั้นแทน
+// ═══════════════════════════════════════════════════════════════
+
+/** ทำให้ข้อความเทียบกันได้ — ใช้ทั้งตอนค้นและตอนจัดกลุ่ม */
+function evNormalize(t){
+  return String(t || '')
+    .replace(/[""''“”‘’„\\!]/g, '')      // อัญประกาศทุกแบบ + เครื่องหมายตกใจที่หลุดมาจากการพิมพ์
+    .replace(/^\s*งาน\s*กิจกรรม\s*/i, '')
+    .replace(/^\s*งาน\s*/i, '')          // คำนำหน้า "งาน" ไม่ช่วยแยกแยะ ตัดออกได้
+    .replace(/\s+/g, '')
+    .toLowerCase();
+}
+
+/**
+ * ค้นหาวันที่มีงานตรงกับคำค้น แล้วสรุปผลรายปี
+ * @return { total, byYear:[{yearCE, days, sum, avg, min, max, names:Set, dates:[]}], names:[] }
+ */
+function searchEvents(query, metric){
+  const q = evNormalize(query);
+  if (!q) return null;
+  const hits = [];
+  availableYears().forEach(y => {
+    allDaysOfYear(y).forEach(d => {
+      const note = (d.note || '').trim();
+      if (!note) return;
+      if (evNormalize(note).indexOf(q) < 0) return;
+      hits.push({ yearCE:y, date:d.date, note:cleanActivity(note),
+                  value:Number(d[metric]) || 0, section:d.section, holiday:d.holiday || null });
+    });
+  });
+  if (!hits.length) return { total:0, byYear:[], names:[] };
+
+  const byYearMap = {};
+  hits.forEach(h => {
+    const b = byYearMap[h.yearCE] = byYearMap[h.yearCE] ||
+      { yearCE:h.yearCE, days:0, sum:0, min:Infinity, max:0, best:null, names:new Set() };
+    b.days++; b.sum += h.value;
+    if (h.value > 0){
+      if (h.value < b.min) b.min = h.value;
+      if (h.value > b.max){ b.max = h.value; b.best = h; }
+    }
+    b.names.add(h.note);
+  });
+  const byYear = Object.values(byYearMap).sort((a,b) => a.yearCE - b.yearCE).map(b => ({
+    ...b, avg: safeDiv(b.sum, b.days), min: (b.min === Infinity ? 0 : b.min),
+    names: Array.from(b.names)
+  }));
+  const names = Array.from(new Set(hits.map(h => h.note)));
+  return { total: hits.length, byYear, names, hits };
+}
+
+/** คำนวณ "ค่าเฉลี่ยของวันที่ไม่มีงาน" ในปีเดียวกัน — ใช้เป็นฐานเปรียบเทียบ */
+function baselineNoEvent(yearCE, metric){
+  const off = allDaysOfYear(yearCE).filter(d => !(d.note || '').trim() && (Number(d[metric]) || 0) > 0);
+  if (!off.length) return null;
+  return safeDiv(off.reduce((n,d) => n + (Number(d[metric]) || 0), 0), off.length);
+}
+
+/** งานที่จัดกินวันมากที่สุด — ใช้เป็นปุ่มลัดให้กดค้นได้เลย */
+function topEventNames(limit){
+  const cnt = {};
+  availableYears().forEach(y => {
+    allDaysOfYear(y).forEach(d => {
+      const n = cleanActivity(d.note);
+      if (!n) return;
+      const k = evNormalize(n);
+      if (!k) return;
+      cnt[k] = cnt[k] || { label:n, days:0 };
+      cnt[k].days++;
+    });
+  });
+  return Object.values(cnt).sort((a,b) => b.days - a.days).slice(0, limit || 8);
+}
+
+function renderEventSearch(){
+  // ── ตรวจว่าระบบมีข้อมูลงานกิจกรรมของปีไหนบ้าง แล้วเตือนถ้ายังไม่ครบ ──
+  // ★ ชุดข้อมูลที่ฝังในไฟล์มีชื่องานเฉพาะ พ.ศ. 2564 ขึ้นไป
+  //   แต่ไฟล์ต้นทางถูกเติมย้อนหลังถึง พ.ศ. 2558 แล้ว — ต้องซิงค์จึงจะค้นเจอครบ
+  //   ถ้าไม่เตือน ผู้ใช้ค้น "Motor Show" แล้วไม่เจอ จะสรุปผิดว่าไม่เคยจัด (จริงๆ จัดมา 5 ปี)
+  const yearsWithNote = availableYears().filter(y =>
+    allDaysOfYear(y).some(d => (d.note || '').trim()));
+  const warnEl = document.getElementById('evScopeWarn');
+  if (warnEl){
+    const missing = availableYears().filter(y => !yearsWithNote.includes(y));
+    if (missing.length && !lastSyncSource){
+      warnEl.style.display = 'flex';
+      warnEl.querySelector('span:last-child').innerHTML =
+        `ขณะนี้ระบบมีข้อมูลงานกิจกรรมเฉพาะ <b>พ.ศ. ${yearsWithNote.map(ceToBe).join(', ')}</b> ` +
+        `— ปี ${missing.map(ceToBe).join(', ')} ยังไม่มีชื่องานในชุดข้อมูลที่ฝังไว้ ` +
+        `<b>กดปุ่ม "ซิงค์ตอนนี้" เพื่อดึงข้อมูลงานย้อนหลังจาก Google Sheets</b> ` +
+        `(ไฟล์ต้นทางมีชื่องานย้อนหลังถึง พ.ศ. 2558 แล้ว) — ผลค้นหาตอนนี้จึงอาจไม่ครบ`;
+    } else if (missing.length){
+      warnEl.style.display = 'flex';
+      warnEl.querySelector('span:last-child').innerHTML =
+        `ระบบมีข้อมูลงานกิจกรรมของ <b>พ.ศ. ${yearsWithNote.map(ceToBe).join(', ')}</b> ` +
+        `· ปี ${missing.map(ceToBe).join(', ')} ไม่มีชื่องานบันทึกไว้ในไฟล์ต้นทาง`;
+    } else {
+      warnEl.style.display = 'none';
+    }
+  }
+
+  const sel = document.getElementById('evMetricSelect');
+  if (sel && !sel.options.length){
+    sel.innerHTML = METRIC_KEYS.map(k =>
+      `<option value="${k}">${METRIC_COLOR[k].label}</option>`).join('');
+  }
+  if (sel) sel.value = state.evMetric;
+  const input = document.getElementById('evSearchInput');
+  if (input && input.value !== state.evQuery) input.value = state.evQuery;
+
+  // ปุ่มลัดงานยอดนิยม — ช่วยให้เริ่มใช้งานได้ทันทีโดยไม่ต้องนึกชื่องานเอง
+  const sug = document.getElementById('evSuggest');
+  if (sug){
+    const tops = topEventNames(8);
+    sug.innerHTML = `<span style="font-size:.68rem;color:var(--ink-soft);align-self:center;margin-right:.2rem;">งานที่จัดบ่อย:</span>` +
+      tops.map(t => `<button data-q="${esc(t.label)}" class="chip"
+        style="background:var(--bg);color:var(--ink-soft);border:1px solid var(--line);"
+        title="${esc(t.label)}">${esc(t.label.length > 26 ? t.label.slice(0,26)+'…' : t.label)}
+        <span style="opacity:.6;">${t.days}ว</span></button>`).join('');
+    sug.querySelectorAll('[data-q]').forEach(b => b.addEventListener('click', () => {
+      state.evQuery = b.dataset.q; renderEventSearch();
+    }));
+  }
+
+  const sumEl = document.getElementById('evSummary');
+  const resEl = document.getElementById('evResult');
+  const res = searchEvents(state.evQuery, state.evMetric);
+
+  if (!res){
+    sumEl.innerHTML = '';
+    resEl.innerHTML = `<div class="card rounded-2xl p-8 text-center">
+      <p class="text-sm" style="color:var(--ink-soft);line-height:1.7;">
+        พิมพ์คำค้นด้านบน หรือกดปุ่มงานที่จัดบ่อยเพื่อเริ่มดู<br>
+        <span style="font-size:.78rem;opacity:.8;">ระบบมีข้อมูลงานกิจกรรมตั้งแต่ พ.ศ. 2558 เป็นต้นไป</span>
+      </p></div>`;
+    return;
+  }
+  if (!res.total){
+    sumEl.innerHTML = '';
+    resEl.innerHTML = `<div class="card rounded-2xl p-8 text-center">
+      <p class="text-sm" style="color:var(--ink-soft);line-height:1.7;">
+        ไม่พบงานที่ตรงกับ "<b>${esc(state.evQuery)}</b>"<br>
+        <span style="font-size:.78rem;opacity:.8;">ลองใช้คำสั้นลง เพราะชื่องานแต่ละปีอาจสะกดต่างกัน</span>
+      </p></div>`;
+    return;
+  }
+
+  const key = state.evMetric, M = METRIC_COLOR[key], ink = metricInk(key);
+  const totalDays = res.byYear.reduce((n,b) => n + b.days, 0);
+  const totalSum  = res.byYear.reduce((n,b) => n + b.sum, 0);
+  const overallAvg = safeDiv(totalSum, totalDays);
+  const bestYear = res.byYear.slice().sort((a,b) => b.avg - a.avg)[0];
+
+  // เทียบกับวันที่ไม่มีงานในปีเดียวกัน — บอกได้ว่างานนี้ "ดึงคนได้จริงไหม"
+  let liftSum = 0, liftN = 0;
+  res.byYear.forEach(b => {
+    const base = baselineNoEvent(b.yearCE, key);
+    if (base && base > 0){ b.base = base; b.lift = (b.avg - base) / base * 100; liftSum += b.lift; liftN++; }
+  });
+  const avgLift = liftN ? liftSum / liftN : null;
+
+  sumEl.innerHTML = [
+    { l:'พบทั้งหมด', v:`${fmt(totalDays)} วัน`, s:`${res.byYear.length} ปี · ${res.names.length} รูปแบบชื่อ`, c:'var(--ink)' },
+    { l:`${M.label}เฉลี่ยวันจัดงาน`, v:`${fmt(overallAvg)} ${M.unit}/วัน`, s:`รวม ${fmt(totalSum)} ${M.unit}`, c:ink },
+    { l:'ปีที่ทำได้ดีที่สุด', v:`พ.ศ. ${ceToBe(bestYear.yearCE)}`, s:`เฉลี่ย ${fmt(bestYear.avg)} ${M.unit}/วัน`, c:metricInk('car') },
+    { l:'เทียบวันที่ไม่มีงาน', v: avgLift === null ? '—' : `${avgLift >= 0 ? '+' : ''}${avgLift.toFixed(1)}%`,
+      s: avgLift === null ? 'ไม่มีฐานเทียบ' : 'ค่าเฉลี่ยส่วนต่างทุกปี', c: (avgLift||0) >= 0 ? 'var(--up)' : 'var(--down)' }
+  ].map(x => `<div class="card mini-card">
+      <p class="mini-card__l">${esc(x.l)}</p>
+      <p class="mini-card__v" style="color:${x.c};" title="${esc(String(x.v))}">${esc(String(x.v))}</p>
+      <p class="mini-card__s" title="${esc(String(x.s))}">${esc(String(x.s))}</p>
+    </div>`).join('');
+
+  // ── ตารางสรุปรายปี ──
+  const maxAvg = Math.max(...res.byYear.map(b => b.avg));
+  const rows = res.byYear.slice().sort((a,b) => b.yearCE - a.yearCE).map(b => {
+    const pct = maxAvg > 0 ? (b.avg / maxAvg * 100) : 0;
+    const liftTxt = (b.lift === undefined) ? '<span class="sp">—</span>'
+      : `<span style="color:${b.lift >= 0 ? 'var(--up)' : 'var(--down)'};font-weight:700;">${b.lift >= 0 ? '+' : ''}${b.lift.toFixed(1)}%</span>`;
+    const bestTxt = b.best
+      ? `${thaiWeekday(b.best.date)} ${formatThaiDateShort(b.best.date)} <span class="sp">(${fmt(b.max)})</span>` : '—';
+    return `<tr style="background:linear-gradient(90deg, ${M.a}1a ${pct.toFixed(1)}%, transparent ${pct.toFixed(1)}%);">
+      <td><button data-jumpyear="${b.yearCE}" class="rank-year-btn" title="ดูข้อมูลปีนี้">${ceToBe(b.yearCE)}</button></td>
+      <td class="num">${b.days}</td>
+      <td class="num" style="color:${ink};font-weight:700;">${fmt(b.avg)}</td>
+      <td class="num">${fmt(b.sum)}</td>
+      <td class="num">${liftTxt}</td>
+      <td class="whitespace-nowrap" style="font-size:.72rem;">${bestTxt}</td>
+      <td style="font-size:.7rem;color:var(--ink-soft);" title="${esc(b.names.join(' · '))}">${esc(b.names[0] || '')}${b.names.length > 1 ? ` <span class="sp">+${b.names.length-1}</span>` : ''}</td>
+    </tr>`;
+  }).join('');
+
+  resEl.innerHTML = `
+    <div class="card rounded-2xl p-5 mb-5">
+      <div class="sec-head"><div style="min-width:0;">
+        <h3 class="sec-head__t">
+          <span class="sec-head__badge" style="background:linear-gradient(135deg,var(--gate-a1),var(--gate-a2));">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.35-4.35"/></svg>
+          </span>ผลค้นหา "${esc(state.evQuery)}" — สรุปรายปี
+        </h3>
+      </div></div>
+      <p class="sec-sub">"เทียบวันปกติ" = ส่วนต่างของค่าเฉลี่ยวันจัดงาน เทียบกับวันที่ไม่มีงานในปีเดียวกัน</p>
+      <div class="tbl-scroll scrollbar-thin">
+        <table class="dash-table roomy headband text-sm" style="min-width:44rem;">
+          <thead><tr>
+            <th>ปี พ.ศ.</th><th style="text-align:right;">จำนวนวัน</th>
+            <th style="text-align:right;">เฉลี่ย/วัน</th><th style="text-align:right;">ยอดรวม</th>
+            <th style="text-align:right;">เทียบวันปกติ</th><th>วันที่ทำยอดสูงสุด</th><th class="grow">ชื่อที่บันทึกไว้</th>
+          </tr></thead><tbody>${rows}</tbody>
+        </table>
+      </div>
+      <p style="font-size:.66rem;margin-top:.8rem;line-height:1.55;color:var(--ink-soft);">
+        ★ ตัวเลข "เทียบวันปกติ" เป็น<b>ความสัมพันธ์เชิงสถิติ ไม่ใช่การพิสูจน์เชิงสาเหตุ</b> —
+        งานส่วนใหญ่จัดตรงวันหยุดซึ่งคนมากอยู่แล้ว ส่วนต่างจึงรวมผลของวันหยุดไว้ด้วย
+      </p>
+    </div>`;
+
+  resEl.querySelectorAll('[data-jumpyear]').forEach(b =>
+    b.addEventListener('click', () => setActiveYear(Number(b.dataset.jumpyear))));
+}
+
 function renderCurrentView(){
   // ล้างกล่องแจ้ง error เดิมก่อนเรนเดอร์รอบใหม่ (ไม่งั้นจะค้างอยู่แม้แก้ได้แล้ว)
   const sec = document.getElementById('view-' + state.currentView);
@@ -5950,6 +6765,7 @@ function renderCurrentView(){
     case 'overview': safeRender('overview', renderOverview); break;
     case 'monthly':  safeRender('monthly',  renderMonthly);  break;
     case 'peaks':    safeRender('peaks',    renderPeaks);    break;
+    case 'events':   safeRender('events',   renderEventSearch); break;
     case 'entry':    safeRender('entry',    renderEntryForm); break;
     case 'data':     safeRender('data',     renderEditTable); break;
     // renderReportPreview เป็น async — จับ error ที่ตัว Promise แทน (try/catch ธรรมดาไม่จับ async)
@@ -6038,6 +6854,40 @@ function initNav(){
     btn.addEventListener('click', ()=>{ state.top10Mode = btn.dataset.mode; renderTop10(); });
   });
 
+  // v97: หน้าค้นหางานกิจกรรม
+  const evInput = document.getElementById('evSearchInput');
+  const evGo = () => { state.evQuery = (evInput ? evInput.value : '').trim(); renderEventSearch(); };
+  if (evInput){
+    evInput.addEventListener('keydown', e => { if (e.key === 'Enter') evGo(); });
+    // ค้นอัตโนมัติหลังหยุดพิมพ์ 350ms — ไม่ต้องกดปุ่มทุกครั้ง แต่ไม่คำนวณทุกตัวอักษร
+    let evTimer = null;
+    evInput.addEventListener('input', () => {
+      clearTimeout(evTimer);
+      evTimer = setTimeout(evGo, 350);
+    });
+  }
+  const evBtn = document.getElementById('evSearchBtn');
+  if (evBtn) evBtn.addEventListener('click', evGo);
+  const evSel = document.getElementById('evMetricSelect');
+  if (evSel) evSel.addEventListener('change', e => { state.evMetric = e.target.value; renderEventSearch(); });
+  const evExp = document.getElementById('evExportBtn');
+  if (evExp) evExp.addEventListener('click', () => {
+    if (!state.evQuery){ showToast('กรุณาค้นหางานก่อนออกรายงาน', 'error'); return; }
+    jumpToReport('events');
+  });
+
+  // v96: ปุ่มบันทึก/ยกเลิกการแก้ไขในหน้าแก้ไขข้อมูล
+  const eSaveEdits = document.getElementById('editSaveBtn');
+  if (eSaveEdits) eSaveEdits.addEventListener('click', saveEditsToSheet);
+  const eDiscard = document.getElementById('editDiscardBtn');
+  if (eDiscard) eDiscard.addEventListener('click', discardEdits);
+  // เตือนก่อนปิดแท็บถ้ายังมีงานค้าง — กันปิดหน้าแล้วงานหาย
+  window.addEventListener('beforeunload', (e) => {
+    if (typeof pendingEdits !== 'undefined' && pendingEdits.size > 0){
+      e.preventDefault(); e.returnValue = '';
+    }
+  });
+
   // v88: ฟอร์มบันทึกข้อมูล
   document.querySelectorAll('.entryModeBtn').forEach(btn=>{
     btn.addEventListener('click', ()=>{ state.entryMode = btn.dataset.mode; renderEntryForm(); });
@@ -6065,7 +6915,8 @@ function initNav(){
   // v85: ปุ่มลัด "ออกรายงาน" จากหน้ายอดสูงสุด — เลือกชนิดรายงานให้ตามส่วนที่กำลังดู
   const peakExport = document.getElementById('peakExportBtn');
   if (peakExport) peakExport.addEventListener('click', ()=>{
-    jumpToReport(state.peakScope === 'all' ? 'peaksAll' : 'peaks');
+    jumpToReport(state.peakScope === 'all' ? 'peaksAll'
+               : state.peakScope === 'alltime' ? 'peaksAllTime' : 'peaks');
   });
   // ปุ่มออกรายงานเฉพาะส่วน (รายวัน / รายเดือน)
   document.querySelectorAll('.peakSectionExport').forEach(btn=>{
@@ -6747,7 +7598,11 @@ function buildReport(scope, monthKey, weekNo){
       }
     }
 
-    if (scope === 'peaks' || scope === 'peaksAll' || scope === 'peaksDaily' || scope === 'peaksMonthly') {
+    if (scope === 'events') {
+      buildEventReport(container, pageIds);
+    } else if (scope === 'peaksAllTime') {
+      buildAllTimeReport(container, pageIds);
+    } else if (scope === 'peaks' || scope === 'peaksAll' || scope === 'peaksDaily' || scope === 'peaksMonthly') {
       buildPeaksReport(container, pageIds, scope);
     } else if (scope === 'week') {
       buildWeeklyReport(container, pageIds, monthKey, weekNo);
@@ -6839,6 +7694,209 @@ function rptSourceLine(){
 //   'peaks'        → รวมทั้งสองส่วนในหน้าเดียว (เหมือนเดิม)
 //   'peaksAll'     → รวม + หน้าตารางเทียบทุกปี (2 หน้า)
 // รับได้ทั้ง string (แบบใหม่) และ boolean (แบบเดิม) เพื่อไม่ให้โค้ดที่เรียกอยู่เดิมพัง
+// ═══════════════════════════════════════════════════════════════
+// v95: รายงาน "10 อันดับวันที่ทำยอดสูงสุดตลอดกาล" — ครบทุกประเภทในหน้าเดียว
+// ★ ตอบคำถามหลัก: "งานอะไรที่ทำยอดได้สูงสุดในประวัติของศูนย์ฯ"
+// ═══════════════════════════════════════════════════════════════
+// ═══════════════════════════════════════════════════════════════
+// v97: รายงาน A4 "ผลค้นหางานกิจกรรม"
+// ★ ใช้ตอบคำถามเชิงวางแผน: งานนี้จัดมากี่ปี ปีไหนได้ผลดีที่สุด ควรจัดอีกไหม
+// ═══════════════════════════════════════════════════════════════
+function buildEventReport(container, pageIds){
+  const T = RPT_THEME.peaks;
+  const key = state.evMetric, M = METRIC_COLOR[key];
+  const inkFor = k => (METRIC_INK[k] ? METRIC_INK[k].light : RPT.ink);
+  const col = inkFor(key);
+  const res = searchEvents(state.evQuery, key);
+
+  if (!res || !res.total){
+    const pe = makeReportPage('rptEv1', T);
+    pe.innerHTML = rptHeader('รายงานผลค้นหางานกิจกรรม', 'ไม่พบข้อมูลที่ตรงกับคำค้น', '—', T) +
+      `<div style="padding:24px 42px;">${reportEmptyState('ไม่พบงานที่ตรงกับ "' + esc(state.evQuery || '') + '"',
+        'ลองใช้คำค้นที่สั้นลง เพราะชื่องานแต่ละปีอาจสะกดต่างกัน')}</div>` +
+      rptFooter(1, 1, `ข้อมูล ณ ${nowThaiDateStr()}`, T);
+    container.appendChild(pe); pageIds.push('rptEv1');
+    return;
+  }
+
+  // เติมค่าเทียบกับวันที่ไม่มีงาน
+  let liftSum = 0, liftN = 0;
+  res.byYear.forEach(b => {
+    const base = baselineNoEvent(b.yearCE, key);
+    if (base && base > 0){ b.base = base; b.lift = (b.avg - base) / base * 100; liftSum += b.lift; liftN++; }
+  });
+  const avgLift = liftN ? liftSum / liftN : null;
+  const totalDays = res.byYear.reduce((n,b) => n + b.days, 0);
+  const totalSum = res.byYear.reduce((n,b) => n + b.sum, 0);
+  const overallAvg = safeDiv(totalSum, totalDays);
+  const sortedByAvg = res.byYear.slice().sort((a,b) => b.avg - a.avg);
+  const best = sortedByAvg[0], worst = sortedByAvg[sortedByAvg.length-1];
+
+  // ── บทสรุปผู้บริหาร ──
+  const pts = [];
+  pts.push({ k:'ขอบเขตที่พบ', v:
+    `จัดมาแล้ว <b>${res.byYear.length} ปี</b> รวม <b>${fmt(totalDays)} วัน</b> ` +
+    `(พ.ศ. ${ceToBe(res.byYear[0].yearCE)}–${ceToBe(res.byYear[res.byYear.length-1].yearCE)})` +
+    (res.names.length > 1 ? ` · พบชื่อที่บันทึกไว้ ${res.names.length} รูปแบบ` : '') });
+  pts.push({ k:`${M.label}เฉลี่ยในวันจัดงาน`, v:
+    `<b>${fmt(overallAvg)} ${M.unit}/วัน</b> รวมทุกปี ${fmt(totalSum)} ${M.unit}` });
+  pts.push({ k:'ปีที่ทำได้ดีที่สุด', v:
+    `พ.ศ. ${ceToBe(best.yearCE)} เฉลี่ย <b>${fmt(best.avg)} ${M.unit}/วัน</b> จาก ${best.days} วัน` +
+    (best.best ? ` · วันสูงสุด ${formatThaiDateShort(best.best.date)} ที่ ${fmt(best.max)}` : '') });
+  if (res.byYear.length > 1 && worst.avg > 0){
+    const diff = (best.avg - worst.avg) / worst.avg * 100;
+    pts.push({ k:'ช่วงความต่างระหว่างปี', v:
+      `ปีที่ดีที่สุดสูงกว่าปีที่ต่ำที่สุด (พ.ศ. ${ceToBe(worst.yearCE)} = ${fmt(worst.avg)}) อยู่ <b>${diff.toFixed(1)}%</b>` });
+  }
+  if (avgLift !== null){
+    pts.push({ k:'เทียบกับวันที่ไม่มีงาน', v:
+      `วันจัดงานสูงกว่าวันปกติในปีเดียวกันเฉลี่ย <b>${avgLift >= 0 ? '+' : ''}${avgLift.toFixed(1)}%</b> ` +
+      `<span style="color:${RPT.soft};">(เป็นความสัมพันธ์เชิงสถิติ ไม่ใช่การพิสูจน์เชิงสาเหตุ — งานมักจัดตรงวันหยุดซึ่งคนมากอยู่แล้ว)</span>` });
+  }
+
+  // ── ตารางรายปี ──
+  const maxAvg = Math.max(...res.byYear.map(b => b.avg));
+  const th = ['ปี พ.ศ.','จำนวนวัน','เฉลี่ย/วัน','ยอดรวม','เทียบวันปกติ','วันที่ทำยอดสูงสุด','ชื่อที่บันทึกไว้']
+    .map((t,i) => `<th style="text-align:${(i>=1&&i<=4)?'right':'left'};padding:7px 9px;font-family:Kanit;font-weight:600;font-size:11.5px;color:#fff;white-space:nowrap;">${t}</th>`).join('');
+  const body = res.byYear.slice().sort((a,b) => b.yearCE - a.yearCE).map(b => {
+    const pct = maxAvg > 0 ? (b.avg / maxAvg * 100) : 0;
+    const lift = (b.lift === undefined) ? '—'
+      : `<span style="color:${b.lift>=0?RPT.up:RPT.down};font-weight:700;">${b.lift>=0?'+':''}${b.lift.toFixed(1)}%</span>`;
+    return `<tr style="background:linear-gradient(90deg, ${col}1a ${pct.toFixed(1)}%, transparent ${pct.toFixed(1)}%);border-bottom:1px solid ${RPT.faint};">
+      <td style="padding:7px 9px;font-weight:700;font-size:12.5px;white-space:nowrap;">${ceToBe(b.yearCE)}</td>
+      <td style="padding:7px 9px;text-align:right;font-size:12.5px;white-space:nowrap;">${b.days}</td>
+      <td style="padding:7px 9px;text-align:right;font-weight:700;font-size:13px;color:${col};font-variant-numeric:tabular-nums;white-space:nowrap;">${fmt(b.avg)}</td>
+      <td style="padding:7px 9px;text-align:right;font-size:12px;color:${RPT.soft};font-variant-numeric:tabular-nums;white-space:nowrap;">${fmt(b.sum)}</td>
+      <td style="padding:7px 9px;text-align:right;font-size:12px;white-space:nowrap;">${lift}</td>
+      <td style="padding:7px 9px;font-size:11.5px;white-space:nowrap;">${b.best ? formatThaiDateShort(b.best.date) + ' · ' + fmt(b.max) : '—'}</td>
+      <td style="padding:7px 9px;font-size:11px;color:${RPT.soft};white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:0;"
+          title="${esc(b.names.join(' · '))}">${esc(b.names[0] || '')}${b.names.length>1?` +${b.names.length-1}`:''}</td>
+    </tr>`;
+  }).join('');
+
+  const p1 = makeReportPage('rptEv1', T);
+  p1.innerHTML =
+    rptHeader('รายงานผลค้นหางานกิจกรรม',
+      `ศูนย์การค้าซีคอน บางแค · คำค้น "${esc(state.evQuery)}" · วัดผลด้วย${M.label}`,
+      `${res.byYear.length} ปี`, T) +
+    `<div style="padding:18px 42px 8px 39px;">` +
+      rptExecSummary(pts, T) +
+      `<div>` + rptCard('สรุปผลรายปี', `<table style="width:100%;border-collapse:collapse;table-layout:fixed;">
+        <colgroup><col style="width:58px"><col style="width:66px"><col style="width:82px"><col style="width:88px"><col style="width:82px"><col style="width:132px"><col></colgroup>
+        <thead><tr style="background:linear-gradient(90deg,${T.g1},${T.g2});">${th}</tr></thead>
+        <tbody>${body}</tbody></table>`, col, 'calendar') + `</div>` +
+      rptMethodology([
+        rptSourceLine(),
+        `วิธีค้น: เทียบคำค้นกับชื่องานหลังตัดอัญประกาศ ช่องว่าง คำนำหน้า "งาน" และตัวพิมพ์เล็ก-ใหญ่ออก`,
+        `★ <b>ข้อควรระวัง:</b> ชื่องานเดียวกันบางปีสะกดต่างกัน (เช่น "กาดหมั้ว" / "กาดมั้ว" / "แอ๋วตลาด")
+         ระบบไม่รวมคำที่สะกดต่างกันจริงให้อัตโนมัติ เพราะเสี่ยงจับงานคนละงานมารวมกัน
+         หากตัวเลขดูน้อยกว่าที่ควร ให้ลองค้นด้วยคำที่สั้นลง`,
+        `"เทียบวันปกติ" = ส่วนต่างของค่าเฉลี่ยวันจัดงาน เทียบกับค่าเฉลี่ยวันที่ไม่มีบันทึกงานในปีเดียวกัน
+         ★ เป็นความสัมพันธ์เชิงสถิติ ไม่ใช่การพิสูจน์เชิงสาเหตุ — งานส่วนใหญ่จัดตรงวันหยุด
+         ซึ่งมีผู้ใช้บริการมากอยู่แล้ว ส่วนต่างที่เห็นจึงรวมผลของวันหยุดไว้ด้วย`,
+        `ระบบเริ่มมีการบันทึกงานกิจกรรมตั้งแต่ พ.ศ. 2558 — งานที่จัดก่อนหน้านั้นจะไม่ปรากฏในผลค้นหา`
+      ]) +
+    `</div>` + rptFooter(1, 1, `ข้อมูล ณ ${nowThaiDateStr()}`, T);
+  container.appendChild(p1); pageIds.push('rptEv1');
+}
+
+function buildAllTimeReport(container, pageIds){
+  const T = RPT_THEME.peaks;
+  const years = availableYears();
+  const inkFor = k => (METRIC_INK[k] ? METRIC_INK[k].light : RPT.ink);
+  const usable = METRIC_KEYS.filter(k => years.some(y => allDaysOfYear(y).some(d => (Number(d[k])||0) > 0)));
+
+  // ตาราง 10 อันดับของหนึ่งตัวชี้วัด (จัดบรรทัดเดียวต่ออันดับ)
+  const topTable = (key) => {
+    const rows = computeAllTimeTop(key, 10);
+    if (!rows.length) return `<p style="font-size:12.5px;color:${RPT.soft};margin:0;">ไม่มีข้อมูล</p>`;
+    const max = rows[0].value, col = inkFor(key), unit = METRIC_COLOR[key].unit;
+    const th = ['#','ปี พ.ศ.','ยอด ('+unit+')','วันที่','ประเภทวัน','งานกิจกรรมในวันนั้น']
+      .map((t,i) => `<th style="text-align:${i===2?'right':'left'};padding:6px 9px;font-family:Kanit;font-weight:600;font-size:11.5px;color:#fff;white-space:nowrap;">${t}</th>`).join('');
+    const body = rows.map((r,i) => {
+      const pct = max > 0 ? (r.value / max * 100) : 0;
+      const medal = i===0?'#F59E0B':i===1?'#94A3B8':i===2?'#B45309':'#CBD5E1';
+      const act = cleanActivity(r.note);
+      return `<tr style="background:linear-gradient(90deg, ${col}1a ${pct.toFixed(1)}%, transparent ${pct.toFixed(1)}%);border-bottom:1px solid ${RPT.faint};">
+        <td style="padding:6px 9px;"><span style="display:inline-flex;align-items:center;justify-content:center;width:17px;height:17px;border-radius:5px;background:${medal};color:#fff;font-size:10px;font-weight:700;">${i+1}</span></td>
+        <td style="padding:6px 9px;font-weight:700;font-size:12.5px;white-space:nowrap;">${ceToBe(r.yearCE)}</td>
+        <td style="padding:6px 9px;text-align:right;font-weight:700;font-size:13px;color:${col};font-variant-numeric:tabular-nums;white-space:nowrap;">${fmt(r.value)}</td>
+        <td style="padding:6px 9px;font-size:12px;white-space:nowrap;">${thaiWeekday(r.date)} ${formatThaiDateShort(r.date)}</td>
+        <td style="padding:6px 9px;font-size:11.5px;color:${RPT.soft};white-space:nowrap;">${r.section==='weekend'?'วันหยุด':'วันธรรมดา'}${r.holiday?' · '+esc(r.holiday):''}</td>
+        <td style="padding:6px 9px;font-size:11px;color:${RPT.soft};white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:0;"
+            title="${esc(act)}">${act ? esc(act) : '<span style="opacity:.5;">—</span>'}</td>
+      </tr>`;
+    }).join('');
+    return `<table style="width:100%;border-collapse:collapse;table-layout:fixed;">
+      <colgroup><col style="width:32px"><col style="width:62px"><col style="width:88px"><col style="width:112px"><col style="width:108px"><col></colgroup>
+      <thead><tr style="background:linear-gradient(90deg,${T.g1},${T.g2});">${th}</tr></thead>
+      <tbody>${body}</tbody></table>`;
+  };
+
+  // ── บทสรุปผู้บริหาร: หาว่างานไหนติดอันดับบ่อยที่สุด ──
+  const execPoints = [];
+  const custTop = computeAllTimeTop('customer', 10);
+  if (custTop.length){
+    const t = custTop[0];
+    execPoints.push({ k:'วันที่ทำยอดผู้ใช้บริการสูงสุดตลอดกาล', v:
+      `${thaiWeekday(t.date)} ${formatThaiDateShort(t.date)} จำนวน <b>${fmt(t.value)} คน</b>` +
+      (t.note ? ` ซึ่งตรงกับ${esc(quoteActivity(t.note))}` : ' (ยังไม่มีการบันทึกงานกิจกรรมในปีนั้น)') });
+
+    // งานที่ติด 10 อันดับบ่อยที่สุด — บอกได้ว่างานประเภทไหนดึงคนได้จริง
+    const cnt = {};
+    custTop.forEach(r => { const n = cleanActivity(r.note); if (n) cnt[n] = (cnt[n]||0)+1; });
+    const rank = Object.keys(cnt).map(n => ({n, c:cnt[n]})).sort((a,b)=>b.c-a.c);
+    if (rank.length && rank[0].c > 1){
+      execPoints.push({ k:'งานที่ติด 10 อันดับมากที่สุด', v:
+        `${esc(rank[0].n)} ติดอันดับ <b>${rank[0].c} วัน</b> จาก 10 อันดับสูงสุดตลอดกาล` });
+    }
+    const we = custTop.filter(r => r.section === 'weekend').length;
+    execPoints.push({ k:'สัดส่วนวันหยุดใน 10 อันดับ', v:
+      `<b>${we} จาก ${custTop.length} วัน</b> เป็นวันหยุดหรือวันนักขัตฤกษ์ ` +
+      `<span style="color:${RPT.soft};">(สะท้อนว่าวันหยุดคือช่วงที่ทำยอดสูงสุดได้จริง)</span>` });
+    const yset = [...new Set(custTop.map(r => ceToBe(r.yearCE)))].sort();
+    execPoints.push({ k:'ปีที่ครองอันดับ', v:
+      `10 อันดับสูงสุดมาจาก ${yset.length} ปี ได้แก่ พ.ศ. ${yset.join(', ')}` });
+  }
+
+  // ── หน้า 1: ลูกค้า + รถยนต์ ── (แบ่งหน้าเพื่อไม่ให้ตารางล้นกระดาษ A4)
+  const p1 = makeReportPage('rptAT1', T);
+  const half1 = usable.slice(0, 2), half2 = usable.slice(2);
+  p1.innerHTML =
+    rptHeader('รายงาน 10 อันดับยอดสูงสุดตลอดกาล',
+      `ศูนย์การค้าซีคอน บางแค · รวมข้อมูล พ.ศ. ${ceToBe(years[0])}–${ceToBe(years[years.length-1])}`,
+      `${years.length} ปี`, T) +
+    `<div style="padding:18px 42px 8px 39px;">` +
+      rptExecSummary(execPoints, T) +
+      half1.map((k,i) => `<div style="${i?'margin-top:13px;':''}">` +
+        rptCard(`${METRIC_COLOR[k].label} — 10 วันที่ทำยอดสูงสุดตลอดกาล`, topTable(k), inkFor(k), 'trophy') +
+      `</div>`).join('') +
+    `</div>` + rptFooter(1, 2, `ข้อมูล ณ ${nowThaiDateStr()}`, T);
+  container.appendChild(p1); pageIds.push('rptAT1');
+
+  // ── หน้า 2: ประเภทที่เหลือ ──
+  const p2 = makeReportPage('rptAT2', T);
+  p2.innerHTML =
+    rptHeader('10 อันดับยอดสูงสุดตลอดกาล (ต่อ)',
+      `ศูนย์การค้าซีคอน บางแค · จำแนกตามประเภท`, 'ต่อจากหน้า 1', T) +
+    `<div style="padding:18px 42px 8px 39px;">` +
+      half2.map((k,i) => `<div style="${i?'margin-top:13px;':''}">` +
+        rptCard(`${METRIC_COLOR[k].label} — 10 วันที่ทำยอดสูงสุดตลอดกาล`, topTable(k), inkFor(k), 'trophy') +
+      `</div>`).join('') +
+      rptMethodology([
+        rptSourceLine(),
+        `ขอบเขต: รวมข้อมูลรายวันทุกปี (พ.ศ. ${ceToBe(years[0])}–${ceToBe(years[years.length-1])}) มาจัดอันดับใหม่ทั้งหมด`,
+        `★ ต่างจากรายงาน "เทียบทุกปี" ซึ่งแสดง 1 ปี 1 แถว (เฉพาะวันพีคของปีนั้น) —
+         รายงานนี้นำ<b>ทุกวันมาแข่งกัน</b> จึงเห็นวันที่ยอดสูงมากแต่ไม่ใช่วันพีคของปีตัวเองด้วย`,
+        `การบันทึกงานกิจกรรมเริ่มตั้งแต่ พ.ศ. 2564 — วันที่ติดอันดับจากปีก่อนหน้านั้นจึงไม่มีชื่องานกำกับ
+         ไม่ได้แปลว่าวันนั้นไม่มีการจัดงาน`,
+        `"วันหยุด" ในรายงานนี้หมายรวมเสาร์-อาทิตย์และวันหยุดนักขัตฤกษ์
+         (ปฏิทินนักขัตฤกษ์ในระบบครอบคลุม พ.ศ. 2568–2569 ปีก่อนหน้านับเฉพาะเสาร์-อาทิตย์)`
+      ]) +
+    `</div>` + rptFooter(2, 2, `ข้อมูล ณ ${nowThaiDateStr()}`, T);
+  container.appendChild(p2); pageIds.push('rptAT2');
+}
+
 function buildPeaksReport(container, pageIds, mode){
   const scope = (mode === true) ? 'peaksAll' : (mode || 'peaks');
   const allYears = (scope === 'peaksAll');
@@ -7853,7 +8911,11 @@ async function exportReport(kind){
     if (canvases.length === 0) throw new Error('สร้างภาพหน้ารายงานไม่สำเร็จ');
 
     // v81: ชื่อไฟล์ต้องบอกได้ว่าเป็นรายงานอะไร ปีไหน (มี 14 ปีให้เลือกแล้ว)
-    const scopeLabel = scope==='peaksAll'
+    const scopeLabel = scope==='events'
+      ? 'ผลค้นหางาน_' + (state.evQuery || '').replace(/[^\u0E00-\u0E7Fa-zA-Z0-9]+/g,'_').slice(0,30)
+      : scope==='peaksAllTime'
+      ? 'ยอดสูงสุด_10อันดับตลอดกาล'
+      : scope==='peaksAll'
       ? 'ยอดสูงสุด_เทียบทุกปี'
       : scope==='peaksDaily'
       ? 'ยอดสูงสุดรายวัน_' + ceToBe(state.year)
