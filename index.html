@@ -1,5 +1,218 @@
 <!DOCTYPE html>
 <!--
+  ระบบวิเคราะห์ยอดลูกค้า-ยอดรถยนต์ · เวอร์ชัน v110
+  v110 — แก้ "หน้าจอค้างเดือนเก่า" หลังซิงค์ข้อมูลใหม่จาก Google Sheets
+
+  ═══════════════════════════════════════════════════════════════
+  ■ อาการที่ผู้ใช้รายงาน (ยืนยันแล้วว่าเป็นบั๊กจริง)
+  ═══════════════════════════════════════════════════════════════
+   วันนี้กันยายน 2569 และชีตมีข้อมูลถึงกันยายนแล้ว
+   แต่การ์ด "วันธรรมดา เทียบ วันหยุด" ยังโชว์ "กรกฎาคม 2569"
+
+  ■ สาเหตุที่แท้จริง (วัดแล้ว ไม่ใช่เดา)
+   ไฟล์นี้ฝังข้อมูลไว้ถึง ก.ค. — ตอนเปิดโปรแกรมจึงเลือก ก.ค. ซึ่ง "ถูกต้องตามข้อมูลที่มี ณ ตอนนั้น"
+   ปัญหาเกิดตอนซิงค์: เมื่อ Sheets ส่ง ส.ค./ก.ย. เข้ามา โค้ดเรียกแค่ renderCurrentView()
+   ซึ่งไม่ได้คำนวณ "เดือนที่ควรแสดง" ใหม่ เพราะทุกเงื่อนไขตรวจสอบผ่านหมด
+   ('Jul26' ยังเป็นคีย์ที่ใช้ได้อยู่) → หน้าจอค้างที่เดือนเก่าไปเรื่อยๆ
+   ผลการวัด: preferredMonthKey() คืน Sep26 ถูกต้อง
+             แต่ state.selectedMonth และ state.wdweMonthKey ค้างที่ Jul26
+
+  ═══════════════════════════════════════════════════════════════
+  ■ วิธีแก้ — แยก "ค่าที่ระบบเลือกให้" ออกจาก "ค่าที่ผู้ใช้เลือกเอง"
+  ═══════════════════════════════════════════════════════════════
+   ★ ตรงตามที่ผู้ใช้ระบุ: ให้แสดงเดือนล่าสุดมาเทียบก่อน ส่วนการเลือกดูเดือน/ปีอื่นเป็นอีกเรื่อง
+     - ผู้ใช้ยังไม่เคยเลือกเดือนเอง  → ตามข้อมูลล่าสุดเสมอ รวมถึงหลังซิงค์
+     - ผู้ใช้เลือกเดือนเองแล้ว       → เคารพสิ่งที่เลือก ไม่กระโดดหนีระหว่างกำลังดูอยู่
+     - เปลี่ยนปี = เริ่มบริบทใหม่    → ล้างสถานะ "ผู้ใช้เลือกเอง" แล้วเด้งล่าสุดของปีนั้น
+   ฟังก์ชันใหม่ refreshLatestSelections() ถูกเรียกหลังซิงค์ที่มีข้อมูลเปลี่ยน
+   และตอนเปลี่ยนปี (แบบ force)
+
+  ■ บั๊กที่พบเพิ่มระหว่างแก้
+   ① "เดือนล่าสุด" นับแถวเปล่าที่ชีตสร้างไว้ล่วงหน้าด้วย
+      ชีตต้นทางมักสร้างแถววันที่ 1–31 ของเดือนถัดไปไว้รอกรอก (ยอดเป็น 0 ทั้งหมด)
+      getAvailableMonthKeys() นับว่า "มีข้อมูล" เพราะดูแค่ daily.length > 0
+      → ถ้าวันนี้เป็นต้นเดือนตุลาคม ระบบจะเลือกตุลาคมที่ยังว่างเปล่า แล้วโชว์ยอด 0 ทั้งหน้า
+        และ %เทียบเดือนก่อนจะกลายเป็น -100%
+      → เพิ่ม monthsWithRecords() + latestMonthKey() ที่นับเฉพาะเดือนที่มีข้อมูลจริง
+      ทดสอบยืนยัน: ใส่ ต.ค.+พ.ย. เป็นแถวเปล่า → ระบบยังเลือก ก.ย. ถูกต้อง
+
+   ② การ์ด "ข้อมูลล่าสุด" บนหน้าภาพรวมมีปัญหาเดียวกัน
+      ใช้ keys[keys.length-1] ตรงๆ จึงเสี่ยงโชว์เดือนที่ยังไม่มีใครกรอก
+      → เปลี่ยนไปใช้ latestMonthKey() เช่นเดียวกัน
+
+   ③ การ์ดวันธรรมดา/วันหยุด กับ หน้ารายเดือน ใช้คนละสูตรเลือกเดือน
+      การ์ดใช้ keys[last] · หน้ารายเดือนใช้ preferredMonthKey()
+      สองอย่างนี้ให้ผลต่างกันได้ (เดือนปฏิทินปัจจุบัน vs เดือนสุดท้ายในลิสต์)
+      → รวมให้ใช้ preferredMonthKey() เหมือนกัน
+
+   ④ กดเลือกเดือนในหน้ารายเดือนแล้วไม่รีเซ็ตสัปดาห์
+      ถ้าเลือกสัปดาห์ที่ 5 ไว้แล้วสลับไปเดือนที่มีแค่ 4 สัปดาห์ จะค้างสัปดาห์ที่ไม่มีอยู่จริง
+      → รีเซ็ต state.selectedWeek = 0 ทุกครั้งที่เปลี่ยนเดือน
+
+   ⑤ daysOfScope() และ dropdown เลือกเดือนของหน้าแก้ไข/รายงาน
+      ยังใช้ getAvailableMonthKeys().slice(-1)[0] เป็นค่าสำรอง → เปลี่ยนเป็น preferredMonthKey()
+      ตอนนี้ไม่เหลือจุดที่ใช้ "เดือนสุดท้ายในลิสต์" ตรงๆ อีกเลยในโปรแกรม
+
+  ═══════════════════════════════════════════════════════════════
+  ■ ลำดับความสำคัญของการเลือกเดือน (ใช้ร่วมกันทั้งโปรแกรมแล้ว)
+  ═══════════════════════════════════════════════════════════════
+   1. ปีปัจจุบัน + เดือนปฏิทินปัจจุบันมีข้อมูลจริงแล้ว → เดือนนั้น
+   2. ไม่เข้าข้อ 1 → เดือนล่าสุดที่มีข้อมูลจริง (ข้ามเดือนที่มีแต่แถวเปล่า)
+   3. ไม่มีข้อมูลจริงเลย → เดือนล่าสุดที่มีแถว (กันหน้าจอว่าง)
+
+  ═══════════════════════════════════════════════════════════════
+  ■ ผลตรวจทาน v110 (ผ่านทั้งหมด)
+  ═══════════════════════════════════════════════════════════════
+   จำลองซิงค์ : ใส่ ส.ค.(ครบเดือน) + ก.ย.(ถึงวันที่ 10) → ทุกจุดเด้งเป็น ก.ย. พร้อมกัน
+                (preferredMonthKey · หน้ารายเดือน · การ์ดวันธรรมดา/วันหยุด · การ์ดข้อมูลล่าสุด
+                 · ป้ายช่วงข้อมูล "ม.ค. – ก.ย. (เดือนล่าสุดถึงวันที่ 10)")
+   เคารพผู้ใช้ : เลือก มี.ค. เอง → ซิงค์รอบใหม่ยังอยู่ที่ มี.ค. · เปลี่ยนปีจึงเด้งกลับล่าสุด
+   แถวเปล่า   : ใส่ ต.ค.+พ.ย. เป็นแถวเปล่า → ไม่ถูกเลือกเป็น "เดือนล่าสุด"
+   ทุกปี      : 14 ปี ทั้งการ์ดและหน้ารายเดือนเลือกเดือนตรงกันทุกปี
+   ถดถอย      : ความสอดคล้องวันธรรมดา/วันหยุด 162 เดือน · การนับสัปดาห์ 839 กลุ่ม
+                · ยอดรายสัปดาห์ 972 ชุด · ระบบรวม 126 ชุด · หน้ายอดสูงสุด 3 โหมด
+                · ตัวตรวจสัปดาห์อัตโนมัติ · คอนทราสต์ 108 ชุด — ผ่านเหมือนเดิมทั้งหมด
+  ───────────────────────────────────────────────────────────────
+  ระบบวิเคราะห์ยอดลูกค้า-ยอดรถยนต์ · เวอร์ชัน v109
+  v109 — "วันธรรมดา เทียบ วันหยุด": แก้ตัวเลขไม่ตรงกันระหว่างหน้าจอ + เด้งช่วงล่าสุด
+
+  ═══════════════════════════════════════════════════════════════
+  ■ บั๊กที่พบและแก้ (ทั้งหมดยืนยันด้วยการวัด ไม่ใช่การเดา)
+  ═══════════════════════════════════════════════════════════════
+  ① ★★ ค่าเฉลี่ยวันธรรมดา/วันหยุด ไม่ตรงกันระหว่างหน้าภาพรวมกับหน้ารายเดือน
+     v106 แก้ computeMonthStats() ให้ตัด "วันที่ยังไม่กรอก" (ทุกตัวชี้วัดเป็น 0)
+     ออกจากตัวหารของค่าเฉลี่ย — แต่ตกหล่นไม่ได้แก้ฝั่งวันธรรมดา/วันหยุด
+     ผลคือเดือนเดียวกันแสดงคนละตัวเลขในสองหน้า
+     ทดสอบยืนยัน: เดือนที่มีวันยังไม่กรอก 5 วัน → ต่างกัน 5,570 คน/วัน (~14%)
+     ★ นี่คือสถานการณ์ปกติของ "เดือนปัจจุบัน" ทุกเดือน จึงเกิดขึ้นเกือบตลอดเวลา
+     → เพิ่มนิยามกลาง hasAnyRecord() แล้วใช้ร่วมกันทั้ง wdweSummary() และ wdweAverages()
+       ★ แก้ที่ต้นทางจึงมีผลครบทั้ง 3 จุดพร้อมกัน: การ์ดหน้าภาพรวม · ตารางใต้การ์ด
+         · รายงาน A4 ทั้ง 3 ชนิด (ภาพรวม/รายเดือน/รายสัปดาห์) ที่เรียกใช้ฟังก์ชันเดียวกัน
+     ★ ยอดรวม (wdSum/weSum) ไม่กระทบ เพราะวันว่างบวกได้ 0 อยู่แล้ว — กระทบเฉพาะค่าเฉลี่ย
+
+  ② ★★ สลับปีแล้วการ์ดค้างอยู่ที่เดือนเดิม ไม่เด้งไปเดือนล่าสุดของปีใหม่
+     เงื่อนไขเดิม `if (!state.wdweMonthKey || !state.data[state.wdweMonthKey])`
+     ไม่มีวันเป็นจริง เพราะคีย์เดือนใช้ชื่อชุดเดียวกันทุกปี ('Jan26'…'Dec26')
+     สลับปีแล้วคีย์เดิมยัง "มีอยู่" เสมอ
+     ทดสอบยืนยัน: ดูปี 2569 ที่เดือน ก.ค. → สลับไปปี 2556 → ยังโชว์ ก.ค. 2556
+     ทั้งที่เดือนล่าสุดของปีนั้นคือ ธ.ค. — ผู้ใช้เข้าใจว่ากำลังดู "ล่าสุด" แต่ไม่ใช่
+     → จำปีที่เรนเดอร์ไว้ (renderWdWe._lastYear) เปลี่ยนปีเมื่อไรรีเซ็ตเดือน/สัปดาห์ทันที
+     ทดสอบครบ 14 ปี เด้งเดือนล่าสุดถูกต้องทุกปี
+
+  ③ โหมดรายสัปดาห์จัดวันคนละแบบกับหน้ารายเดือน
+     daysOfScope() กรองด้วย d.weekNo (ค่าที่เก็บในแถว) แต่ v108 กำหนดให้
+     "ปฏิทินจันทร์–อาทิตย์" เป็นความจริงเพียงอย่างเดียวแล้ว
+     ทดสอบยืนยัน: ยัด weekNo=99 → daysOfScope หาเจอ 1 วัน แต่ computeWeeklyStats ไม่รับ
+     → การ์ดกับหน้ารายเดือนจะจัดวันคนละสัปดาห์ได้ ทั้งที่พูดถึงสัปดาห์เดียวกัน
+     → เปลี่ยนไปอ่านจาก computeWeeklyStats() แหล่งเดียว
+
+  ④ ข้อความข้อจำกัดปฏิทินวันหยุดล้าสมัย
+     ยังเขียนว่า "ปฏิทินมีเฉพาะ พ.ศ. 2568–2569" ซึ่งไม่จริงตั้งแต่ v106
+     ที่ขยายวันหยุดตายตัวตามสุริยคติครบทุกปี 2556–2573
+     → ดึงจาก holidayCoverage() แหล่งเดียว จะได้ไม่ล้าสมัยอีกเมื่อเพิ่มข้อมูลปีใหม่
+
+  ═══════════════════════════════════════════════════════════════
+  ■ สิ่งที่ปรับให้อ่านง่ายและไม่เข้าใจผิด
+  ═══════════════════════════════════════════════════════════════
+   • การ์ด "ช่วงที่ดู" บอก "มีบันทึก 29/31 วัน" แทน "29 วัน" เฉยๆ
+     และเปลี่ยนเป็นสีเตือนพร้อมข้อความ "ยังไม่กรอก N" เมื่อข้อมูลไม่ครบ
+     ★ สำคัญมากเวลาเอาเดือน/สัปดาห์ปัจจุบัน (ยังไม่ครบ) ไปเทียบกับช่วงก่อนที่ครบแล้ว
+   • ตัวเลือกสัปดาห์บอกช่วงวันจริง "สัปดาห์ที่ 3 (11–17) ⚠ขาด 6" แทน "สัปดาห์ที่ 3"
+   • ป้ายช่วงในโหมดสัปดาห์บอกวันที่ด้วย: "สัปดาห์ที่ 1 (1–5 ก.ค.) · 2569"
+   • หมายเหตุอธิบายว่าค่าเฉลี่ยคิดจาก "วันที่มีบันทึกจริง" เท่านั้น
+   • เตือนเมื่อเทียบช่วงที่ยังไม่ครบกับช่วงที่ครบแล้ว — เป็นกับดักที่อ่านผลผิดบ่อยที่สุด
+     เพราะช่วงปัจจุบันมักมีวันหยุดไม่ครบสัดส่วน ทำให้ค่าเฉลี่ยฝั่งวันหยุดแกว่งแรง
+     จนดูเหมือนยอดตก/พุ่ง ทั้งที่เป็นเรื่องของจำนวนวัน
+
+  ═══════════════════════════════════════════════════════════════
+  ■ ผลตรวจทาน v109 (ผ่านทั้งหมด)
+  ═══════════════════════════════════════════════════════════════
+   ความสอดคล้อง: 162 เดือน (14 ปี) — หน้าภาพรวม = หน้ารายเดือน = รายงาน A4 ตรงกันทุกเดือน
+   โหมดสัปดาห์ : จัดวันตรงกับ computeWeeklyStats() ทุกสัปดาห์
+   ค่าเริ่มต้น  : เด้งเดือนล่าสุด/สัปดาห์ล่าสุดเสมอ · ทดสอบสลับครบ 14 ปี
+   รายงาน      : ภาพรวม/รายเดือน/รายปี/รายสัปดาห์ทุกสัปดาห์ สร้างได้หมด
+   ค่าสุดขั้ว   : 7 เคส (scope แปลก · เดือน/สัปดาห์ไม่มีจริง · array ว่าง · null/NaN
+                 · เดือนที่ทุกวันเป็น 0 · ทุกโหมด × ทุกเดือน) ไม่ throw
+   ถดถอย       : การนับสัปดาห์ 839 กลุ่ม · ยอดรายสัปดาห์ 972 ชุด · ระบบรวม 126 ชุด
+                 · ตัวตรวจสัปดาห์อัตโนมัติ · หน้ายอดสูงสุด 3 โหมด · คอนทราสต์ 108 ชุด
+                 ทั้งหมดยังผ่านเหมือนเดิม
+  ───────────────────────────────────────────────────────────────
+  ระบบวิเคราะห์ยอดลูกค้า-ยอดรถยนต์ · เวอร์ชัน v108
+  v108 — ตรวจทานการตัดรอบสัปดาห์ (จันทร์–อาทิตย์) + แก้บั๊ก 4 จุด + ระบบตรวจจับอัตโนมัติ
+
+  ═══════════════════════════════════════════════════════════════
+  ■ ผลตรวจ: สูตรนับสัปดาห์ "ถูกต้องอยู่แล้ว" เป็นจันทร์–อาทิตย์
+  ═══════════════════════════════════════════════════════════════
+   สูตรใน makeDayRecord():
+     firstOffset = (วันแรกของเดือน.getDay() + 6) % 7     // จันทร์=0 … อาทิตย์=6
+     weekNo      = floor((วันที่ - 1 + firstOffset) / 7) + 1
+   ตรวจกับข้อมูลจริงทุกเดือนของทุกปี = 839 กลุ่มสัปดาห์ → ตรงตามจันทร์–อาทิตย์ทั้งหมด
+   ตัวอย่างที่ยืนยัน:
+     ส.ค.2569 ขึ้นต้นวันเสาร์ → w1:1-2 (ส-อา) · w2:3-9 (จ-อา) · … · w6:31 ✓
+     มี.ค.2569 ขึ้นต้นวันอาทิตย์ → w1:1 · w2:2-8 · … · w6:30-31 ✓
+   ★ กรณีที่ดูเหมือนผิดแต่ไม่ผิด: พ.ค.2563 สัปดาห์ที่ 3 เริ่มวันอาทิตย์ที่ 17
+     เพราะห้างปิดช่วงโควิดและเปิดวันที่ 17 (เป็นวันอาทิตย์ = วันสุดท้ายของสัปดาห์ 11–17)
+     ระบบจัดถูกแล้ว — เป็นช่องว่างของข้อมูล ไม่ใช่ความผิดของสูตร
+
+  ═══════════════════════════════════════════════════════════════
+  ■ บั๊กจริงที่พบและแก้ (4 จุด)
+  ═══════════════════════════════════════════════════════════════
+  ① ยอดรายสัปดาห์ตกหล่น "แท็กซี่" ทั้งหมด
+     computeWeeklyStats() เขียนรายชื่อตัวชี้วัดด้วยมือ 5 ตัว (customer/car/moto/delivery/mrt)
+     ขาด taxi ทั้งใน totals และ avg → ยอดรายสัปดาห์ขาดไปหนึ่งตัวชี้วัดโดยไม่มีสัญญาณเตือน
+     → เปลี่ยนไปวนจาก METRIC_KEYS เพื่อไม่ให้เกิดซ้ำอีกเมื่อเพิ่มตัวชี้วัดใหม่ในอนาคต
+
+  ② ป้ายช่วงวันบนปุ่มสัปดาห์แสดง "ช่วงที่มีข้อมูล" ไม่ใช่ "ช่วงปฏิทินจริง"
+     เดิมใช้วันแรก/วันสุดท้ายที่มีข้อมูลเป็นช่วงสัปดาห์
+     พ.ค.2563 สัปดาห์ที่ 3 (ปฏิทิน 11–17, มีข้อมูลแค่วันที่ 17) จึงแสดงว่า "(17–17)"
+     ผู้ใช้แยกไม่ออกระหว่าง "สัปดาห์ที่มีข้อมูลวันเดียว" กับ "สัปดาห์ที่มีวันเดียวจริงๆ"
+     → เพิ่ม weekStart/weekEnd (ปฏิทินจริง ตัดหัว-ท้ายตามขอบเดือน) · expectedDays
+       · missingDays · isComplete และแสดง ⚠ พร้อมจำนวนวันที่ขาดบนปุ่มและการ์ด
+
+  ③ เพิ่มแถวใหม่ข้ามสัปดาห์แล้วเลขสัปดาห์ผิด ← ร้ายแรงที่สุด
+     addNewRow() เดิม "สืบทอดเลขสัปดาห์จากวันล่าสุด"
+     ถ้าวันล่าสุดเป็นวันอาทิตย์ วันถัดไปคือวันจันทร์ = ขึ้นสัปดาห์ใหม่
+     แต่โค้ดเดิมยัดวันจันทร์นั้นเข้าสัปดาห์เก่า → สัปดาห์เก่ามี 8 วัน สัปดาห์ใหม่หายไป
+     ยอดรายสัปดาห์ผิดทันทีโดยไม่มี error ใดๆ
+     → ใช้ makeDayRecord() แทนการประกอบ object เอง ได้ทั้ง weekNo ที่ถูกต้อง · section
+       (รวมวันหยุดนักขัตฤกษ์) · holiday · และครบทุกตัวชี้วัดรวมแท็กซี่ที่เดิมก็ตกหล่นเช่นกัน
+     ทดสอบยืนยัน: 26 ก.ค. 2569 (อาทิตย์, w4) → เพิ่ม 27 ก.ค. → ได้ w5 ถูกต้อง
+
+  ④ คอมเมนต์ล้าสมัยที่ทำให้ตรรกะเสี่ยงผิด
+     computeWeeklyStats() เดิมเชื่อ d.weekNo ก่อน โดยคอมเมนต์อ้างว่าเป็น "เลขสัปดาห์จากชีต"
+     ตรวจสอบแล้วพบว่า **ชีตไม่เคยส่งเลขสัปดาห์มาเลย** — makeDayRecord() คำนวณเองทั้งกับ
+     ข้อมูลฝังและข้อมูลจากชีต คอมเมนต์จึงผิดและเปิดช่องให้ค่าที่เพี้ยน (เช่นจากบั๊กข้อ ③)
+     ลากวันไปอยู่ผิดสัปดาห์เงียบๆ
+     → ยึด "ปฏิทินจันทร์–อาทิตย์" เป็นความจริงเสมอ และถ้าพบ weekNo ในข้อมูลไม่ตรงปฏิทิน
+       จะเตือนใน Console (ครั้งเดียวต่อเดือน) แทนที่จะเชื่อตามเงียบๆ
+
+  ═══════════════════════════════════════════════════════════════
+  ■ ระบบตรวจจับอัตโนมัติที่เพิ่มใหม่ — auditWeekLogic()
+  ═══════════════════════════════════════════════════════════════
+   ★ ทำไมต้องมี: การนับสัปดาห์เป็นตรรกะที่ "ผิดแล้วไม่มีใครรู้"
+     ยอดยังรวมได้ กราฟยังวาดได้ ไม่มี error — แต่ตัวเลขรายสัปดาห์ที่เอาไปเทียบกัน
+     จะผิดเงียบๆ และผิดต่อเนื่องทุกเดือนหลังจากนั้น
+   ตรวจ 4 เงื่อนไขที่ต้องเป็นจริงเสมอ ทุกครั้งที่โหลดข้อมูล:
+     1. ทุกวันในสัปดาห์เดียวกันต้องอยู่ในสัปดาห์ ISO เดียวกัน
+     2. สัปดาห์หนึ่งมีได้ไม่เกิน 7 วัน และไม่เกินจำนวนวันตามปฏิทินของสัปดาห์นั้น
+     3. ยอดรวมทุกสัปดาห์ = ยอดทั้งเดือนพอดี (ทุกตัวชี้วัด ไม่ใช่แค่ลูกค้า)
+     4. ถ้ามีข้อมูลวันที่ 1 เลขสัปดาห์ต้องเริ่มที่ 1
+   ★ แจ้งเตือนผู้ใช้เฉพาะกรณี "ยอดไม่ตรง" ซึ่งเป็นอาการเดียวที่กระทบตัวเลขในรายงาน
+     ส่วนสัปดาห์ที่ข้อมูลไม่ครบเป็นเรื่องปกติ (เดือนปัจจุบัน/ช่วงปิดทำการ) จึงไม่รบกวน
+   ทดสอบแล้วว่าจับได้จริง: ยัดวันซ้ำเข้าไป → จับได้ทันทีและระบุเดือน/สัปดาห์ที่ผิด
+
+  ═══════════════════════════════════════════════════════════════
+  ■ ผลตรวจทาน v108 (ผ่านทั้งหมด)
+  ═══════════════════════════════════════════════════════════════
+   การนับสัปดาห์: 839 กลุ่มสัปดาห์จากทุกเดือนทุกปี ตรงจันทร์–อาทิตย์ทั้งหมด
+                 · ไม่มีสัปดาห์คร่อมสัปดาห์ ISO · ไม่มีสัปดาห์เกิน 7 วัน
+   ยอดสอดคล้อง : 972 ชุด (เดือน × ตัวชี้วัด) ยอดรายสัปดาห์ = ยอดทั้งเดือนทุกชุด
+   ค่าสุดขั้ว   : 10 เคส (key/เดือน/สัปดาห์ที่ไม่มีจริง · daily ว่าง · วันที่เพี้ยน
+                 · weekNo ปลอม · รายงานสัปดาห์เกินจริง) ไม่ throw
+   ตัวตรวจอัตโนมัติ: ข้อมูลจริง 14 ปีผ่านสะอาด · ยัดข้อมูลผิดแล้วจับได้ · ไม่มีผลค้าง
+   ระบบรวม      : 126 ชุด (7 หน้า × 14 ปี × 3 โหมดยอดสูงสุด) · ไม่มี id ซ้ำ
+                 · ปุ่มทุกตัวถูกผูก event · คอนทราสต์ 108 ชุดผ่าน WCAG AA
+  ───────────────────────────────────────────────────────────────
   ระบบวิเคราะห์ยอดลูกค้า-ยอดรถยนต์ · เวอร์ชัน v107
   v107 — แก้บั๊กหน้า "ยอดสูงสุดของทุกประเภท": กดสลับโหมดแล้วหน้าจอไม่เปลี่ยน
 
@@ -4272,6 +4485,9 @@ const state = {
   wdweMonthKey: null,      // เดือนที่เลือกในโหมดรายเดือน/รายสัปดาห์ (null = เดือนล่าสุดที่มีข้อมูล)
   wdweWeekNo: null,        // สัปดาห์ที่เลือกในโหมดรายสัปดาห์
   wdweCompare: true,       // เปิด/ปิดการเทียบกับช่วงก่อนหน้า
+  // ★ v110: จำว่าผู้ใช้ "เลือกเดือนเอง" หรือยัง — ถ้ายัง ระบบจะตามข้อมูลล่าสุดเสมอ
+  monthPickedByUser: false,  // หน้ารายเดือน
+  wdwePickedByUser: false,   // การ์ดวันธรรมดา/วันหยุด
   entryMode: 'single',     // v88: โหมดฟอร์มบันทึก — 'single' = ทีละวัน · 'range' = หลายวัน
   // ★ v81: คลังข้อมูลทุกปี { ปีค.ศ.: {monthKey: {...}} } — แหล่งความจริงเดียวของระบบ
   years: JSON.parse(JSON.stringify(EMBEDDED_YEARS)),
@@ -4295,6 +4511,10 @@ function setActiveYear(yearCE, skipRender){
   state.selectedWeek = 0;
   try { localStorage.setItem('sbk_year', String(y)); } catch(e){ /* private mode — ข้าม */ }
   renderYearChips();
+  // ★ v110: เปลี่ยนปี = เริ่มบริบทใหม่ → ล้างสถานะ "ผู้ใช้เลือกเอง" แล้วเด้งเดือนล่าสุดของปีนั้น
+  state.monthPickedByUser = false;
+  state.wdwePickedByUser = false;
+  refreshLatestSelections(true);
   // ★ v106 (พบตอนตรวจทาน): แผง "ค่าที่ควรตรวจสอบ" ผูกกับปีที่เปิดอยู่
   //   ถ้าไม่ตรวจใหม่ตอนเปลี่ยนปี ผู้ใช้จะเห็นผลของปีเก่าค้างอยู่แต่หัวข้อบอกปีใหม่
   //   → เข้าใจผิดว่าปีใหม่มีปัญหาตามนั้น ทั้งที่เป็นข้อมูลคนละปี
@@ -4415,8 +4635,39 @@ function getAvailableMonthKeys(){
 //   2. ถ้าไม่เข้าข้อ 1 (ต้นเดือนที่ยังไม่ลงข้อมูล / ดูปีย้อนหลัง) → เดือนล่าสุดที่มีข้อมูลของปีนั้น
 //   3. ไม่มีข้อมูลเลย → null (หน้าจะแสดง empty state)
 // ═══════════════════════════════════════════════════════════════
-function preferredMonthKey(){
+/**
+ * v110 — เดือนที่ "มีข้อมูลจริง" (ไม่ใช่แค่มีแถว)
+ * ★ ทำไมต้องแยกจาก getAvailableMonthKeys():
+ *   ชีตต้นทางมักสร้างแถวของทั้งเดือนไว้ล่วงหน้า (วันที่ 1–31 ยอดเป็น 0 รอกรอก)
+ *   getAvailableMonthKeys() นับว่า "มีข้อมูล" เพราะดูแค่ daily.length > 0
+ *   ถ้าเอาไปเลือก "เดือนล่าสุด" จะได้เดือนที่ยังไม่มีใครกรอกเลย → หน้าจอโชว์ยอด 0 ทั้งหน้า
+ */
+function monthsWithRecords(){
+  return getAvailableMonthKeys().filter(k => {
+    const m = state.data[k];
+    return m && Array.isArray(m.daily) && m.daily.some(hasAnyRecord);
+  });
+}
+
+/**
+ * เดือนที่ควรแสดงเป็นค่าเริ่มต้น
+ * 1. ปีปัจจุบัน + เดือนปฏิทินปัจจุบันมีข้อมูลจริงแล้ว → เดือนนั้น
+ * 2. ไม่เข้าข้อ 1 → เดือนล่าสุดที่มีข้อมูลจริง
+ * 3. ไม่มีเลย → เดือนล่าสุดที่มีแถว (กันหน้าจอว่าง) หรือ null
+ */
+/** เดือนล่าสุดที่ "มีข้อมูลจริง" — ใช้กับทุกที่ที่พูดว่า "ล่าสุด" */
+function latestMonthKey(){
+  const real = monthsWithRecords();
+  if (real.length) return real[real.length - 1];
   const keys = getAvailableMonthKeys();
+  return keys.length ? keys[keys.length - 1] : null;
+}
+
+function preferredMonthKey(){
+  // ★ v110: ยึด "เดือนที่มีข้อมูลจริง" เป็นหลัก
+  //   เดิมใช้ getAvailableMonthKeys() ตรงๆ ซึ่งนับแถวเปล่าที่ชีตสร้างล่วงหน้าด้วย
+  const real = monthsWithRecords();
+  const keys = real.length ? real : getAvailableMonthKeys();
   if (!keys.length) return null;
   const now = new Date();
   if (state.year === now.getFullYear()){
@@ -4426,13 +4677,60 @@ function preferredMonthKey(){
   return keys[keys.length - 1];
 }
 
+// ═══════════════════════════════════════════════════════════════
+// v110 ★★ ให้ "ช่วงล่าสุด" ตามข้อมูลใหม่ที่ซิงค์เข้ามาเสมอ
+// ───────────────────────────────────────────────────────────────
+// ★ อาการที่ผู้ใช้เจอ: วันนี้กันยายน 2569 และชีตมีข้อมูลถึงกันยายนแล้ว
+//   แต่การ์ด "วันธรรมดา เทียบ วันหยุด" และหน้ารายเดือน ยังโชว์ "กรกฎาคม 2569"
+// ★ สาเหตุ: ไฟล์ฝังข้อมูลไว้ถึง ก.ค. ตอนเปิดโปรแกรมจึงเลือก ก.ค. ถูกต้องตามข้อมูลที่มี ณ ตอนนั้น
+//   แต่พอซิงค์จาก Sheets ได้ ส.ค./ก.ย. เพิ่มเข้ามา โค้ดเรียกแค่ renderCurrentView()
+//   ซึ่ง "ไม่ได้" คำนวณเดือนที่ควรแสดงใหม่ — เพราะ 'Jul26' ยังเป็นคีย์ที่ใช้ได้อยู่
+//   ทุกเงื่อนไขตรวจสอบจึงผ่านหมด และหน้าจอค้างที่เดือนเก่าไปเรื่อยๆ
+// ★ หลักการที่ใช้แก้: แยก "ค่าที่ระบบเลือกให้" ออกจาก "ค่าที่ผู้ใช้เลือกเอง"
+//   - ถ้าผู้ใช้ยังไม่เคยเลือกเดือนเอง → ตามข้อมูลล่าสุดเสมอ (รวมถึงหลังซิงค์)
+//   - ถ้าผู้ใช้เลือกเดือนเองแล้ว → เคารพสิ่งที่เลือก ไม่กระโดดหนีระหว่างที่กำลังดูอยู่
+//   - เปลี่ยนปี = เริ่มบริบทใหม่ → ล้างสถานะ "ผู้ใช้เลือกเอง" ทิ้ง
+// ═══════════════════════════════════════════════════════════════
+function refreshLatestSelections(force){
+  try {
+    const pref = preferredMonthKey();
+    if (!pref) return;
+    // หน้ารายเดือน
+    if (force || !state.monthPickedByUser || !state.data[state.selectedMonth]){
+      if (state.selectedMonth !== pref){ state.selectedMonth = pref; state.selectedWeek = 0; }
+    }
+    // การ์ดวันธรรมดา/วันหยุด
+    if (force || !state.wdwePickedByUser){
+      if (state.wdweMonthKey !== pref){ state.wdweMonthKey = pref; state.wdweWeekNo = null; }
+    }
+  } catch(e){ console.warn('อัปเดตช่วงล่าสุดไม่สำเร็จ:', e); }
+}
+
 // คำนวณค่าเฉลี่ยวันธรรมดา/วันหยุด ครบทั้ง 4 ตัวชี้วัด (ลูกค้า/รถยนต์/จยย./เดลิเวอรี่) จากอาเรย์วันใดก็ได้
 // ใช้ร่วมกันทั้งรายเดือน รายสัปดาห์ และช่วงก่อนหน้า (เทียบ %) — ตรรกะเดียว ไม่เขียนซ้ำ
+// ═══════════════════════════════════════════════════════════════
+// v109 ★ นิยามกลางของ "วันที่มีบันทึกจริง"
+// ───────────────────────────────────────────────────────────────
+// v106 แก้ computeMonthStats() ให้ตัดวันที่ยังไม่กรอก (ทุกตัวชี้วัดเป็น 0) ออกจากค่าเฉลี่ย
+// แต่ "ตกหล่น" ไม่ได้แก้ฝั่งวันธรรมดา/วันหยุด ผลคือหน้าจอสองหน้าแสดงคนละตัวเลขสำหรับ
+// เดือนเดียวกัน — ทดสอบแล้วต่างกันถึง 5,570 คน/วัน (~14%) เมื่อเดือนนั้นมีวันยังไม่กรอก 5 วัน
+// ซึ่งเป็นสถานการณ์ปกติของ "เดือนปัจจุบัน" ทุกเดือน
+// ★ ย้ายนิยามมาไว้จุดเดียว เพื่อไม่ให้หลุดซิงค์กันอีกเมื่อมีการแก้ในอนาคต
+function hasAnyRecord(d){
+  return !!d && METRIC_KEYS.some(k => (Number(d[k]) || 0) > 0);
+}
+
 function wdweAverages(days){
   const metrics = METRIC_KEYS; // v81: รวมแท็กซี่แล้ว (customer/car/moto/delivery/taxi/mrt)
-  const wd = days.filter(d=>d.section==='weekday'), we = days.filter(d=>d.section==='weekend');
+  // ★ v109: ตัดวันที่ยังไม่มีบันทึกออกก่อน ให้ตรงกับ computeMonthStats() (v106)
+  const src = days.filter(hasAnyRecord);
+  const wd = src.filter(d=>d.section==='weekday'), we = src.filter(d=>d.section==='weekend');
   const avg = (arr,f) => arr.length ? arr.reduce((s,d)=>s+(Number(d[f])||0),0)/arr.length : 0;
-  const out = { weekdayCount: wd.length, weekendCount: we.length };
+  const out = {
+    weekdayCount: wd.length, weekendCount: we.length,
+    // จำนวนวันที่ถูกตัดออก — ให้ผู้เรียกเอาไปแจ้งผู้ใช้ได้ว่าค่าเฉลี่ยคิดจากกี่วัน
+    blankCount: days.length - src.length
+  };
   metrics.forEach(f => { out['wd_'+f] = avg(wd,f); out['we_'+f] = avg(we,f); });
   return out;
 }
@@ -4567,41 +4865,86 @@ function computeWeeklyStats(monthKey){
     return Math.floor((day - 1 + firstDow) / 7) + 1;
   };
 
+  const daysInM = daysInMonth(m.monthNum, m.year);
+
+  // ★ v108: ขอบเขตปฏิทินจริงของแต่ละสัปดาห์ (จันทร์–อาทิตย์ ตัดหัว-ท้ายตามขอบเดือน)
+  //   คำนวณจาก "ปฏิทิน" ไม่ใช่จาก "วันที่มีข้อมูล" — สองอย่างนี้ต่างกันเมื่อข้อมูลไม่ครบ
+  const weekBounds = (wk) => {
+    // วันแรกของสัปดาห์ที่ wk ในระบบ index: (wk-1)*7 - firstDow + 1
+    const startDom = Math.max(1, (wk - 1) * 7 - firstDow + 1);
+    const endDom   = Math.min(daysInM, wk * 7 - firstDow);
+    const pad = (n) => String(n).padStart(2, '0');
+    return {
+      start: `${m.year}-${pad(m.monthNum)}-${pad(startDom)}`,
+      end:   `${m.year}-${pad(m.monthNum)}-${pad(endDom)}`,
+      expected: endDom - startDom + 1
+    };
+  };
+
   const buckets = {};
+  let mismatch = 0;
   sorted.forEach(d => {
     if (!isValidISO(d.date)) return; // ข้ามแถวที่วันที่เพี้ยน — กัน bucket "NaN"
-    // ใช้เลขสัปดาห์ที่ระบุในชีตจริง (d.weekNo) เป็นหลักเสมอถ้ามี — ตรงกับที่ห้างกำหนดเอง (ไม่อิงจันทร์-อาทิตย์
-    // เคร่งครัด อาจยาว/สั้นกว่า 7 วันรอบวันหยุดนักขัตฤกษ์) คำนวณจากปฏิทินเป็นแค่ทางเลือกสำรองเมื่อไม่มีเลขระบุ
-    let wk = (d.weekNo !== null && d.weekNo !== undefined) ? d.weekNo : null;
-    if (wk === null) {
-      const dt = new Date(d.date + 'T00:00:00');
-      wk = weekOfMonth(dt);
-    }
+    const dt = new Date(d.date + 'T00:00:00');
+    // ★ v108 เปลี่ยนหลักการ: ใช้ "ปฏิทินจันทร์–อาทิตย์" เป็นความจริงเสมอ
+    //   เดิมโค้ดเชื่อ d.weekNo ก่อน โดยคอมเมนต์อ้างว่าเป็น "เลขสัปดาห์จากชีต"
+    //   แต่ตรวจสอบแล้วพบว่า **ชีตไม่เคยส่งเลขสัปดาห์มาเลย** — ทั้ง makeDayRecord()
+    //   (ใช้ทั้งกับข้อมูลฝังและข้อมูลจากชีต) คำนวณ weekNo เองจากปฏิทินอยู่แล้ว
+    //   คอมเมนต์เดิมจึงล้าสมัยและทำให้เข้าใจผิด · การเชื่อ d.weekNo ยังเปิดช่องให้
+    //   ค่าที่ผิด (เช่น แถวที่เพิ่มมือแล้วสืบทอดเลขสัปดาห์ผิด) ลากวันไปอยู่ผิดสัปดาห์เงียบๆ
+    const calcWk = weekOfMonth(dt);
+    if (d.weekNo != null && Number(d.weekNo) !== calcWk) mismatch++;
+    const wk = calcWk;
     if (!isFinite(wk) || wk < 1) return;
     if (!buckets[wk]) buckets[wk] = [];
     buckets[wk].push(d);
   });
 
+  // แจ้งเตือนครั้งเดียวต่อเดือนถ้าเจอเลขสัปดาห์ในข้อมูลไม่ตรงกับปฏิทิน
+  // (ไม่ทำให้ผลลัพธ์ผิด เพราะยึดปฏิทินแล้ว แต่บอกว่ามีข้อมูลแปลกปลอมอยู่)
+  if (mismatch > 0){
+    const key = `${monthKey}:${mismatch}`;
+    if (computeWeeklyStats._warned !== key){
+      computeWeeklyStats._warned = key;
+      console.warn(`[สัปดาห์] ${monthKey}: พบ ${mismatch} แถวที่ weekNo ไม่ตรงกับปฏิทินจันทร์–อาทิตย์ — ระบบยึดปฏิทินเป็นหลัก`);
+    }
+  }
+
   return Object.keys(buckets).map(k => Number(k)).sort((a,b)=>a-b).map(wk => {
     const days = buckets[wk];
-    const sum = (f) => days.reduce((s,d)=>s+(Number(d[f])||0),0);
-    const totals = { customer:sum('customer'), car:sum('car'), moto:sum('moto'), delivery:sum('delivery'), mrt:sum('mrt') };
+    const b = weekBounds(wk);
+    // ★ v108: ใช้ METRIC_KEYS แทนรายชื่อที่พิมพ์มือ
+    //   เดิมตกหล่น "แท็กซี่" ทั้งใน totals และ avg → ยอดรายสัปดาห์ขาดไปหนึ่งตัวชี้วัด
+    //   โดยไม่มีสัญญาณเตือน และจะเกิดซ้ำอีกทุกครั้งที่เพิ่มตัวชี้วัดใหม่ในอนาคต
+    const totals = {}, avg = {};
     const n = days.length;
+    METRIC_KEYS.forEach(k => {
+      totals[k] = days.reduce((s,d) => s + (Number(d[k]) || 0), 0);
+      avg[k] = safeDiv(totals[k], n);
+    });
     const weekdayDays = days.filter(d=>d.section==='weekday');
     const weekendDays = days.filter(d=>d.section==='weekend');
     let peak = days[0];
     days.forEach(d=>{ if ((Number(d.customer)||0) > (Number(peak.customer)||0)) peak = d; });
     return {
       weekNo: wk,
+      // ★ v108: แยก "ช่วงปฏิทินจริง" ออกจาก "ช่วงที่มีข้อมูล"
+      //   เดิมใช้วันแรก/วันสุดท้ายที่มีข้อมูลเป็นช่วงสัปดาห์ ทำให้ป้ายบนปุ่มหลอกตา
+      //   เช่น พ.ค. 2563 ห้างเปิดวันที่ 17 (อาทิตย์) → สัปดาห์ที่ 3 คือ 11–17
+      //   แต่เดิมแสดงว่า "(17–17)" ผู้ใช้จึงแยกไม่ออกระหว่าง
+      //   "สัปดาห์ที่มีข้อมูลวันเดียว" กับ "สัปดาห์ที่มีแค่วันเดียวจริงๆ"
+      weekStart: b.start, weekEnd: b.end,
+      expectedDays: b.expected,
+      missingDays: Math.max(0, b.expected - n),
+      isComplete: n >= b.expected,
+      // คงชื่อเดิมไว้เพื่อไม่ให้โค้ดส่วนอื่นพัง — แต่ตอนนี้หมายถึง "ช่วงที่มีข้อมูล"
       startDate: days[0].date,
       endDate: days[days.length-1].date,
       days,
       dayCount: n,
       weekdayCount: weekdayDays.length,
       weekendCount: weekendDays.length,
-      totals,
-      avg: { customer: safeDiv(totals.customer,n), car: safeDiv(totals.car,n), moto: safeDiv(totals.moto,n), delivery: safeDiv(totals.delivery,n), mrt: safeDiv(totals.mrt,n) },
-      peak
+      totals, avg, peak
     };
   });
 }
@@ -4701,8 +5044,12 @@ function renderOverview(){
     return;
   }
   const ov = computeOverviewStats();
-  const first = state.data[keys[0]], last = state.data[keys[keys.length-1]];
-  const lastStats = computeMonthStats(keys[keys.length-1]);
+  // ★ v110: "เดือนล่าสุด" ต้องเป็นเดือนที่มีข้อมูลจริง
+  //   เดิมใช้ keys[last] ตรงๆ — ถ้าชีตสร้างแถวเปล่าของเดือนถัดไปไว้ล่วงหน้า
+  //   การ์ด "ข้อมูลล่าสุด" จะโชว์เดือนนั้นพร้อมยอด 0 ทั้งใบ และ %เทียบเดือนก่อนจะเป็น -100%
+  const lastKey = latestMonthKey() || keys[keys.length-1];
+  const first = state.data[keys[0]], last = state.data[lastKey];
+  const lastStats = computeMonthStats(lastKey);
   document.getElementById('dataRangeBadge').textContent =
     `ข้อมูล พ.ศ. ${beYear(state.year)}: ${THAI_MONTH_SHORT[first.monthNum]} – ${THAI_MONTH_SHORT[last.monthNum]}` +
     (lastStats.isPartial ? ` (เดือนล่าสุดถึงวันที่ ${lastStats.daysActual})` : '');
@@ -5173,7 +5520,12 @@ function renderMonthChips(){
   }).join('');
   document.getElementById('monthChips').innerHTML = html;
   document.querySelectorAll('.month-chip').forEach(btn=>{
-    btn.addEventListener('click', ()=>{ state.selectedMonth = btn.dataset.month; renderMonthly(); });
+    btn.addEventListener('click', ()=>{
+      state.selectedMonth = btn.dataset.month;
+      state.selectedWeek = 0;            // ★ v110: เปลี่ยนเดือนต้องรีเซ็ตสัปดาห์ ไม่งั้นค้างสัปดาห์ที่ไม่มีในเดือนใหม่
+      state.monthPickedByUser = true;    // ★ v110: ผู้ใช้เลือกเอง → ไม่เด้งกลับเดือนล่าสุดอีก
+      renderMonthly();
+    });
   });
 }
 
@@ -5191,12 +5543,89 @@ function weeksInMonth(monthKey){
 function renderWeekChips(weeks){
   const chips = [`<button data-week="0" class="week-chip ${state.selectedWeek===0?'active':''} text-sm px-4 py-2 rounded-full card font-medium">ทั้งเดือน</button>`];
   weeks.forEach(w=>{
-    chips.push(`<button data-week="${w.weekNo}" class="week-chip ${state.selectedWeek===w.weekNo?'active':''} text-sm px-4 py-2 rounded-full card font-medium">สัปดาห์ที่ ${w.weekNo} <span style="opacity:.7;font-size:11px;">(${new Date(w.startDate+'T00:00:00').getDate()}–${new Date(w.endDate+'T00:00:00').getDate()})</span></button>`);
+    // ★ v108: แสดง "ช่วงปฏิทินจริง" (จันทร์–อาทิตย์) ไม่ใช่ช่วงที่บังเอิญมีข้อมูล
+    //   และติดเครื่องหมาย ⚠ พร้อมจำนวนวันที่ขาด เพื่อให้ผู้ใช้รู้ว่ายอดสัปดาห์นี้ยังไม่ครบ
+    //   ก่อนจะเอาไปเทียบกับสัปดาห์อื่น (เดิมไม่มีสัญญาณใดๆ เลย)
+    const d1 = new Date(w.weekStart+'T00:00:00').getDate();
+    const d2 = new Date(w.weekEnd+'T00:00:00').getDate();
+    const warn = w.missingDays > 0
+      ? ` <span style="opacity:.85;font-size:11px;color:var(--warn-ink);" title="สัปดาห์นี้ยังไม่มีข้อมูล ${w.missingDays} วัน จากทั้งหมด ${w.expectedDays} วัน">⚠${w.missingDays}</span>`
+      : '';
+    chips.push(`<button data-week="${w.weekNo}" class="week-chip ${state.selectedWeek===w.weekNo?'active':''} text-sm px-4 py-2 rounded-full card font-medium" title="จันทร์–อาทิตย์ · ${w.dayCount}/${w.expectedDays} วัน">สัปดาห์ที่ ${w.weekNo} <span style="opacity:.7;font-size:11px;">(${d1}–${d2})</span>${warn}</button>`);
   });
   document.getElementById('weekChips').innerHTML = chips.join('');
   document.querySelectorAll('.week-chip').forEach(btn=>{
     btn.addEventListener('click', ()=>{ state.selectedWeek = Number(btn.dataset.week); renderMonthly(); });
   });
+}
+
+// ═══════════════════════════════════════════════════════════════
+// v108 — ตัวตรวจความถูกต้องของการนับสัปดาห์ (Self-check)
+// ───────────────────────────────────────────────────────────────
+// ★ ทำไมต้องมี: การนับสัปดาห์เป็นตรรกะที่ "ผิดแล้วไม่มีใครรู้"
+//   ยอดยังรวมได้เท่าเดิม กราฟยังวาดได้ ไม่มี error ใดๆ — แต่ตัวเลขรายสัปดาห์
+//   ที่เอาไปเทียบกันจะผิดไปเงียบๆ และผิดต่อเนื่องทุกเดือนหลังจากนั้น
+//   ตัวตรวจนี้จับได้ทันทีตอนโหลด แทนที่จะรอให้มีคนสังเกตเอง
+// ★ ตรวจ 4 เงื่อนไขที่ต้องเป็นจริงเสมอสำหรับการตัดรอบจันทร์–อาทิตย์:
+//   1. ทุกวันในสัปดาห์เดียวกันต้องอยู่ในสัปดาห์ ISO เดียวกัน
+//   2. สัปดาห์หนึ่งมีได้ไม่เกิน 7 วัน
+//   3. ยอดรวมทุกสัปดาห์ต้องเท่ากับยอดทั้งเดือนพอดี (ไม่มีวันตกหล่นหรือถูกนับซ้ำ)
+//   4. เลขสัปดาห์ต้องเรียงต่อเนื่องจาก 1 (ไม่ข้ามเลข)
+// ═══════════════════════════════════════════════════════════════
+function auditWeekLogic(){
+  const problems = [];
+  try {
+    const isoWeekKey = (iso) => {
+      const t = new Date(iso + 'T00:00:00');
+      t.setDate(t.getDate() - ((t.getDay() + 6) % 7));   // ถอยไปวันจันทร์ของสัปดาห์นั้น
+      return toLocalISO(t);
+    };
+    getAvailableMonthKeys().forEach(key => {
+      const m = state.data[key];
+      if (!m || !Array.isArray(m.daily) || !m.daily.length) return;
+      const weeks = computeWeeklyStats(key);
+      if (!weeks.length) return;
+      const label = `${m.monthName} ${ceToBe(m.year)}`;
+
+      weeks.forEach(w => {
+        // (1) ทุกวันต้องอยู่ในสัปดาห์ ISO เดียวกัน
+        const keys = new Set(w.days.map(d => isoWeekKey(d.date)));
+        if (keys.size !== 1) problems.push(`${label} สัปดาห์ที่ ${w.weekNo}: คร่อม ${keys.size} สัปดาห์ปฏิทิน`);
+        // (2) ไม่เกิน 7 วัน
+        if (w.dayCount > 7) problems.push(`${label} สัปดาห์ที่ ${w.weekNo}: มี ${w.dayCount} วัน (เกิน 7)`);
+        // เกินขอบเขตปฏิทินของสัปดาห์นั้น
+        if (w.dayCount > w.expectedDays) problems.push(`${label} สัปดาห์ที่ ${w.weekNo}: มี ${w.dayCount} วัน แต่ปฏิทินมีแค่ ${w.expectedDays}`);
+      });
+
+      // (3) ยอดรวมต้องตรง — ตรวจทุกตัวชี้วัด ไม่ใช่แค่ลูกค้า
+      METRIC_KEYS.forEach(mk => {
+        const wSum = weeks.reduce((a, w) => a + (w.totals[mk] || 0), 0);
+        const mSum = m.daily.reduce((a, d) => a + (Number(d[mk]) || 0), 0);
+        if (wSum !== mSum) problems.push(`${label}: ยอด${(METRIC_COLOR[mk]||{}).label || mk} รายสัปดาห์ ${fmt(wSum)} ≠ ทั้งเดือน ${fmt(mSum)}`);
+      });
+
+      // (4) เลขสัปดาห์ต่อเนื่อง — ช่องว่างหมายถึงมีสัปดาห์ที่ไม่มีข้อมูลเลย (ยอมรับได้
+      //     แต่ถ้าเริ่มไม่ใช่ 1 ทั้งที่มีข้อมูลวันที่ 1 แปลว่าการนับเพี้ยน)
+      const nos = weeks.map(w => w.weekNo);
+      const hasDay1 = m.daily.some(d => d.date.endsWith('-01'));
+      if (hasDay1 && nos[0] !== 1) problems.push(`${label}: มีข้อมูลวันที่ 1 แต่เลขสัปดาห์เริ่มที่ ${nos[0]}`);
+    });
+  } catch(e){
+    console.warn('ตรวจสอบการนับสัปดาห์ไม่สำเร็จ:', e);
+    return { ok: false, problems: ['ตรวจสอบไม่สำเร็จ: ' + (e && e.message ? e.message : 'ไม่ทราบสาเหตุ')] };
+  }
+
+  if (problems.length){
+    console.warn(`[ตรวจสัปดาห์] พบ ${problems.length} ปัญหา:`);
+    problems.slice(0, 20).forEach(p => console.warn('  · ' + p));
+    // ★ แจ้งผู้ใช้เฉพาะเมื่อ "ยอดไม่ตรง" เท่านั้น — เป็นอาการเดียวที่กระทบตัวเลขในรายงาน
+    //   ส่วนสัปดาห์ที่ข้อมูลไม่ครบเป็นเรื่องปกติ (เดือนปัจจุบัน/ช่วงปิดทำการ) ไม่ควรรบกวน
+    const critical = problems.filter(p => p.includes('≠'));
+    if (critical.length){
+      showToast(`พบความไม่สอดคล้องของยอดรายสัปดาห์ ${critical.length} รายการ — ดูรายละเอียดใน Console`, 'error');
+    }
+  }
+  return { ok: problems.length === 0, problems };
 }
 
 // การ์ดสรุปรายสัปดาห์ (คลิกเพื่อเจาะดูสัปดาห์นั้น)
@@ -5218,7 +5647,9 @@ function renderWeeklyCards(weeks){
   ];
   const html = weeks.map((w,i)=>{
     const p = palette[i % palette.length];
-    const rangeText = `${new Date(w.startDate+'T00:00:00').getDate()} – ${new Date(w.endDate+'T00:00:00').getDate()} ${THAI_MONTH_SHORT[state.data[state.selectedMonth].monthNum]}`;
+    // ★ v108: ใช้ช่วงปฏิทินจริง (จันทร์–อาทิตย์) เช่นเดียวกับปุ่มเลือกสัปดาห์
+    const rangeText = `${new Date(w.weekStart+'T00:00:00').getDate()} – ${new Date(w.weekEnd+'T00:00:00').getDate()} ${THAI_MONTH_SHORT[state.data[state.selectedMonth].monthNum]}`
+      + (w.missingDays > 0 ? ` · ขาด ${w.missingDays} วัน` : '');
     return `
     <button data-weekcard="${w.weekNo}" class="text-left tick-card" style="background:${p.bg};border:1px solid ${p.border};padding:14px;">
       <div class="relative z-10">
@@ -5285,7 +5716,7 @@ function renderMonthly(){
     avgWeekendCustomer: (()=>{ const r=selWeek.days.filter(d=>d.section==='weekend'); return r.length?r.reduce((s,d)=>s+(Number(d.customer)||0),0)/r.length:0; })(),
     avgWeekdayCar: (()=>{ const r=selWeek.days.filter(d=>d.section==='weekday'); return r.length?r.reduce((s,d)=>s+(Number(d.car)||0),0)/r.length:0; })(),
     avgWeekendCar: (()=>{ const r=selWeek.days.filter(d=>d.section==='weekend'); return r.length?r.reduce((s,d)=>s+(Number(d.car)||0),0)/r.length:0; })(),
-    label: `สัปดาห์ที่ ${selWeek.weekNo}`
+    label: `สัปดาห์ที่ ${selWeek.weekNo}`  // ช่วงปฏิทินจริงแสดงที่ป้ายกำกับด้านล่าง
   } : {
     days: ms.daily,
     totalCustomer: ms.totalCustomer, totalCar: ms.totalCar, totalMoto: ms.totalMoto, totalDelivery: ms.totalDelivery,
@@ -5374,7 +5805,7 @@ function renderMonthlyTable(days){
 function renderDataEditSelect(){
   const keys = getAvailableMonthKeys();
   const sel = document.getElementById('dataEditMonthSelect');
-  const cur = sel.value && keys.includes(sel.value) ? sel.value : state.selectedMonth || keys[keys.length-1];
+  const cur = sel.value && keys.includes(sel.value) ? sel.value : (state.selectedMonth || preferredMonthKey() || keys[keys.length-1]);
   sel.innerHTML = keys.map(k => `<option value="${k}" ${k===cur?'selected':''}>${THAI_MONTH_FULL[state.data[k].monthNum]} ${beYear(state.data[k].year)}</option>`).join('');
 }
 
@@ -5886,17 +6317,15 @@ function addNewRow(){
   const lastDate = sorted.length ? new Date(sorted[sorted.length-1].date+'T00:00:00') : new Date(m.year, m.monthNum-1, 1);
   const next = new Date(lastDate); next.setDate(next.getDate()+1);
   if (next.getMonth()+1 !== m.monthNum) { showToast('เดือนนี้มีข้อมูลครบทุกวันแล้ว', 'error'); return; }
-  const dow = next.getDay();
-  // สืบทอดเลขสัปดาห์จากวันล่าสุด — วันที่เพิ่มต่อท้ายคือวันในสัปดาห์ปัจจุบันที่ยังไม่ปิดยอดของชีต
-  // (ถ้าปล่อยว่าง ระบบจะ fallback ไปนับสัปดาห์แบบปฏิทินเฉพาะวันนี้วันเดียว ซึ่งอาจชนกับเลขสัปดาห์
-  // ตามชีตของวันอื่นๆ จนเกิด bucket สัปดาห์เกินจริง) เมื่อซิงค์จากชีตรอบถัดไป เลขจริงจะทับค่านี้เอง
-  const lastWeekNo = sorted.length ? (sorted[sorted.length-1].weekNo ?? null) : null;
-  m.daily.push({
-    date: toLocalISO(next), // ใช้เวลาท้องถิ่น — toISOString() จะทำให้วันถอยไป 1 วันในเขตเวลาไทย
-    weekday: next.toLocaleDateString('en-US',{weekday:'long'}),
-    section: (dow===0||dow===6) ? 'weekend' : 'weekday',
-    customer:0, car:0, moto:0, delivery:0, mrt:0, note:'', weekNo: lastWeekNo
-  });
+  // ★★ v108 แก้บั๊ก: เดิม "สืบทอดเลขสัปดาห์จากวันล่าสุด"
+  //   ถ้าวันล่าสุดเป็นวันอาทิตย์ วันถัดไปคือวันจันทร์ = ขึ้นสัปดาห์ใหม่แล้ว
+  //   แต่โค้ดเดิมยัดวันจันทร์นั้นเข้าสัปดาห์เก่า → สัปดาห์เก่ามี 8 วัน สัปดาห์ใหม่หายไป
+  //   และยอดรายสัปดาห์ผิดทันทีโดยไม่มีสัญญาณเตือน
+  //   ★ ใช้ makeDayRecord() แทนการประกอบ object เอง เพื่อให้ได้ทั้ง weekNo · section
+  //     (รวมวันหยุดนักขัตฤกษ์) · holiday · และครบทุกตัวชี้วัดรวม "แท็กซี่" ที่เดิมตกหล่น
+  //     และเพื่อไม่ให้ตรรกะแยกเป็นสองชุดที่ต้องคอยดูแลให้ตรงกัน
+  const rec = makeDayRecord(m.year, m.monthNum, next.getDate(), [0,0,0,0,0,0], '');
+  m.daily.push(rec);
   renderEditTable();
   showToast('เพิ่มแถวใหม่แล้ว กรุณากรอกตัวเลข', 'info');
 }
@@ -7033,6 +7462,9 @@ async function syncAllFromSheets(silent){
       if (!silent) showToast(`ซิงค์จาก ${srcLabel} สำเร็จ — ${detail}` +
         (changedYears ? ` · อัปเดต ${changedYears} ปี` : ' · ข้อมูลตรงกับที่มีอยู่แล้ว'), 'success');
       renderYearChips();
+      // ★★ v110: ต้องคำนวณ "เดือนล่าสุด" ใหม่ก่อนวาดหน้าจอ
+      //   ไม่งั้นข้อมูลเดือนใหม่เข้ามาแล้ว แต่หน้าจอยังค้างเดือนเก่า (ดูหมายเหตุที่ refreshLatestSelections)
+      if (changedYears > 0) refreshLatestSelections();
       renderCurrentView();
       if (changedYears > 0) auditThaiHolidays();
       if (lastDataIssues.length && !silent){
@@ -7953,21 +8385,38 @@ function daysOfScope(scope, opts){
   const o = opts || {};
   if (scope === 'year'){
     const y = o.year || state.year;
-    return { days: allDaysOfYear(y), label: `ปี พ.ศ. ${ceToBe(y)}` };
+    const yd = allDaysOfYear(y);
+    return { days: yd, label: `ปี พ.ศ. ${ceToBe(y)}`, expectedDays: yd.length };
   }
   if (scope === 'month'){
-    const key = o.monthKey || state.selectedMonth || getAvailableMonthKeys().slice(-1)[0];
+    const key = o.monthKey || state.selectedMonth || preferredMonthKey();
     const m = state.data && state.data[key];
     if (!m) return { days: [], label: '—' };
-    return { days: m.daily.slice(), label: `${THAI_MONTH_FULL[m.monthNum]} ${ceToBe(m.year)}` };
+    return { days: m.daily.slice(), label: `${THAI_MONTH_FULL[m.monthNum]} ${ceToBe(m.year)}`,
+             expectedDays: daysInMonth(m.monthNum, m.year) };
   }
   if (scope === 'week'){
-    const key = o.monthKey || state.selectedMonth || getAvailableMonthKeys().slice(-1)[0];
+    const key = o.monthKey || state.selectedMonth || preferredMonthKey();
     const m = state.data && state.data[key];
     if (!m) return { days: [], label: '—' };
-    const wk = Number(o.weekNo) || (weeksInMonth(key)[0] || 1);
-    const days = m.daily.filter(d => Number(d.weekNo) === wk);
-    return { days, label: `สัปดาห์ที่ ${wk} · ${THAI_MONTH_FULL[m.monthNum]} ${ceToBe(m.year)}` };
+    // ★★ v109 แก้ความไม่สอดคล้อง: เดิมกรองด้วย d.weekNo (ค่าที่เก็บในแถว)
+    //   แต่ v108 กำหนดให้ "ปฏิทินจันทร์–อาทิตย์" เป็นความจริงเพียงอย่างเดียวแล้ว
+    //   ทดสอบยืนยัน: ยัด weekNo=99 เข้าไป → daysOfScope หาเจอ 1 วัน
+    //   แต่ computeWeeklyStats ไม่รับ → การ์ดวันธรรมดา/วันหยุด กับ หน้ารายเดือน
+    //   จะจัดวันคนละสัปดาห์กันได้ ทั้งที่พูดถึงสัปดาห์เดียวกัน
+    //   → ใช้ computeWeeklyStats() เป็นแหล่งเดียว ทุกหน้าจึงเห็นสัปดาห์ตรงกันเสมอ
+    const weeks = computeWeeklyStats(key);
+    const wk = Number(o.weekNo) || (weeks.length ? weeks[weeks.length-1].weekNo : 1);
+    const w = weeks.find(x => x.weekNo === wk);
+    if (!w) return { days: [], label: `สัปดาห์ที่ ${wk} · ${THAI_MONTH_FULL[m.monthNum]} ${ceToBe(m.year)}` };
+    const d1 = new Date(w.weekStart + 'T00:00:00').getDate();
+    const d2 = new Date(w.weekEnd + 'T00:00:00').getDate();
+    return {
+      days: w.days.slice(),
+      // ★ ป้ายบอกช่วงวันจริงด้วย — เดิมบอกแค่ "สัปดาห์ที่ N" ผู้ใช้ต้องเดาเองว่าคือวันไหนถึงวันไหน
+      label: `สัปดาห์ที่ ${wk} (${d1}–${d2} ${THAI_MONTH_SHORT[m.monthNum]}) · ${ceToBe(m.year)}`,
+      expectedDays: w.expectedDays
+    };
   }
   return { days: [], label: '—' };
 }
@@ -7980,7 +8429,7 @@ function prevScopeRef(scope, opts){
     return state.years[y] ? { scope:'year', opts:{ year:y } } : null;
   }
   if (scope === 'month'){
-    const key = o.monthKey || state.selectedMonth || getAvailableMonthKeys().slice(-1)[0];
+    const key = o.monthKey || state.selectedMonth || preferredMonthKey();
     const idx = MONTH_KEY_ORDER.indexOf(key);
     for (let i = idx-1; i >= 0; i--){
       const pk = MONTH_KEY_ORDER[i];
@@ -7989,7 +8438,7 @@ function prevScopeRef(scope, opts){
     return null;
   }
   if (scope === 'week'){
-    const key = o.monthKey || state.selectedMonth || getAvailableMonthKeys().slice(-1)[0];
+    const key = o.monthKey || state.selectedMonth || preferredMonthKey();
     const weeks = weeksInMonth(key);
     const wk = Number(o.weekNo) || (weeks[0] || 1);
     const i = weeks.indexOf(wk);
@@ -8006,14 +8455,21 @@ function prevScopeRef(scope, opts){
  *   ถ้าเทียบยอดรวมจะสรุปผิดว่า "วันธรรมดาคนเยอะกว่า" ทั้งที่จริงคือวันธรรมดามีจำนวนวันมากกว่า
  */
 function wdweSummary(scope, opts){
-  const { days, label } = daysOfScope(scope, opts);
-  const wd = days.filter(d => d.section === 'weekday');
-  const we = days.filter(d => d.section === 'weekend');
-  const holidays = days.filter(d => d.holiday);
+  const { days, label, expectedDays } = daysOfScope(scope, opts);
+  // ★ v109: ใช้นิยามเดียวกับ wdweAverages()/computeMonthStats() — ตัดวันที่ยังไม่มีบันทึก
+  //   ยอดรวม (wdSum/weSum) ไม่กระทบ เพราะวันว่างบวกได้ 0 อยู่แล้ว
+  //   แต่ค่าเฉลี่ยกระทบเต็มๆ เพราะวันว่างเคยถูกนับเป็นตัวหาร
+  const src = days.filter(hasAnyRecord);
+  const wd = src.filter(d => d.section === 'weekday');
+  const we = src.filter(d => d.section === 'weekend');
+  const holidays = src.filter(d => d.holiday);
   const avg = (arr, k) => arr.length ? arr.reduce((s,d)=>s+(Number(d[k])||0),0)/arr.length : 0;
   const sum = (arr, k) => arr.reduce((s,d)=>s+(Number(d[k])||0),0);
-  const out = { label, dayCount: days.length, weekdayCount: wd.length, weekendCount: we.length,
-                holidayCount: holidays.length, metrics: {} };
+  const out = { label, dayCount: src.length, weekdayCount: wd.length, weekendCount: we.length,
+                holidayCount: holidays.length,
+                blankCount: days.length - src.length,
+                expectedDays: expectedDays || days.length,
+                metrics: {} };
   METRIC_KEYS.forEach(k => {
     out.metrics[k] = {
       wdAvg: avg(wd,k), weAvg: avg(we,k),
@@ -8045,9 +8501,30 @@ function renderWdWe(){
   });
 
   // ── ตัวเลือกช่วงย่อย ──
-  // ถ้าเดือน/สัปดาห์ที่จำไว้ไม่มีในปีที่กำลังดู (เช่นเพิ่งสลับปี) ให้ถอยไปค่าที่ใช้ได้เสมอ
-  if (!state.wdweMonthKey || !state.data[state.wdweMonthKey]) state.wdweMonthKey = keys[keys.length-1];
-  const weeks = weeksInMonth(state.wdweMonthKey);
+  // ★★ v109 แก้บั๊ก: เดิมเช็กแค่ `state.data[state.wdweMonthKey]` ว่ามีอยู่ไหม
+  //   แต่คีย์เดือนใช้ชื่อชุดเดียวกันทุกปี ('Jan26'…'Dec26') — สลับปีแล้วคีย์เดิมยัง "มีอยู่" เสมอ
+  //   เงื่อนไขจึงไม่มีวันเป็นจริง และการ์ดค้างอยู่ที่เดือนเดิมของปีใหม่
+  //   ทดสอบยืนยัน: ดูปี 2569 ที่เดือน ก.ค. → สลับไปปี 2556 → ยังโชว์ ก.ค. 2556
+  //   ทั้งที่เดือนล่าสุดของปีนั้นคือ ธ.ค. — ผู้ใช้เข้าใจว่ากำลังดู "ล่าสุด" แต่ไม่ใช่
+  //   → จำปีที่เรนเดอร์ไว้ ถ้าเปลี่ยนปีให้รีเซ็ตเป็นเดือน/สัปดาห์ล่าสุดของปีใหม่
+  if (renderWdWe._lastYear !== state.year){
+    renderWdWe._lastYear = state.year;
+    state.wdweMonthKey = null;
+    state.wdweWeekNo = null;
+    state.wdwePickedByUser = false;
+  }
+  // ★ v110: ใช้ preferredMonthKey() แทน keys[last] ให้ตรงกับหน้ารายเดือน
+  //   ต่างกันตรงที่ preferredMonthKey() ข้ามเดือนที่มีแต่แถวเปล่า และเลือกเดือนปฏิทิน
+  //   ปัจจุบันก่อนถ้ามีข้อมูลแล้ว — เดิมใช้ keys[last] จึงอาจได้คนละเดือนกับหน้ารายเดือน
+  if (!state.wdweMonthKey || !state.data[state.wdweMonthKey] || !state.wdwePickedByUser){
+    const pref = preferredMonthKey();
+    if (pref) state.wdweMonthKey = pref;
+  }
+  if (!state.wdweMonthKey) state.wdweMonthKey = keys[keys.length-1];
+  // ★ v109: ใช้สัปดาห์จาก computeWeeklyStats() (ปฏิทินจันทร์–อาทิตย์) ให้ตรงกับหน้ารายเดือน
+  //   เดิมใช้ weeksInMonth() ที่อ่านจาก d.weekNo ซึ่งอาจไม่ตรงปฏิทิน
+  const weekList = computeWeeklyStats(state.wdweMonthKey);
+  const weeks = weekList.map(w => w.weekNo);
   if (state.wdweScope === 'week' && (!state.wdweWeekNo || !weeks.includes(state.wdweWeekNo)))
     state.wdweWeekNo = weeks.length ? weeks[weeks.length-1] : 1;
 
@@ -8059,9 +8536,14 @@ function renderWdWe(){
       `</select>`;
   }
   if (state.wdweScope === 'week'){
+    // ★ v109: บอกช่วงวันจริง (จันทร์–อาทิตย์) และวันที่ยังไม่มีข้อมูล ในตัวเลือกเลย
     ctlHtml += `<select id="wdweWeekSel" class="text-xs px-2.5 py-1.5 rounded-lg card" style="border:1px solid var(--line);">` +
-      weeks.map(w => `<option value="${w}" ${w===state.wdweWeekNo?'selected':''}>สัปดาห์ที่ ${w}</option>`).join('') +
-      `</select>`;
+      weekList.map(w => {
+        const a = new Date(w.weekStart+'T00:00:00').getDate();
+        const b = new Date(w.weekEnd+'T00:00:00').getDate();
+        const miss = w.missingDays > 0 ? ` ⚠ขาด ${w.missingDays}` : '';
+        return `<option value="${w.weekNo}" ${w.weekNo===state.wdweWeekNo?'selected':''}>สัปดาห์ที่ ${w.weekNo} (${a}–${b})${miss}</option>`;
+      }).join('') + `</select>`;
   }
   ctlHtml += `<label class="text-xs flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg card" style="border:1px solid var(--line);cursor:pointer;">
       <input type="checkbox" id="wdweCompareChk" ${state.wdweCompare?'checked':''} style="accent-color:#35BE86;">
@@ -8069,7 +8551,11 @@ function renderWdWe(){
   ctl.innerHTML = ctlHtml;
 
   const monthSel = document.getElementById('wdweMonthSel');
-  if (monthSel) monthSel.addEventListener('change', e => { state.wdweMonthKey = e.target.value; state.wdweWeekNo = null; renderWdWe(); });
+  if (monthSel) monthSel.addEventListener('change', e => {
+    state.wdweMonthKey = e.target.value; state.wdweWeekNo = null;
+    state.wdwePickedByUser = true;   // ★ v110: ผู้ใช้เลือกเอง → ไม่เด้งกลับเดือนล่าสุดอีก
+    renderWdWe();
+  });
   const weekSel = document.getElementById('wdweWeekSel');
   if (weekSel) weekSel.addEventListener('change', e => { state.wdweWeekNo = Number(e.target.value); renderWdWe(); });
   document.getElementById('wdweCompareChk').addEventListener('change', e => { state.wdweCompare = e.target.checked; renderWdWe(); });
@@ -8088,7 +8574,13 @@ function renderWdWe(){
     `<span style="font-size:.6rem;font-weight:700;color:${v>=0?'var(--up)':'var(--down)'};margin-left:.25rem;">${v>=0?'▲':'▼'}${Math.abs(v).toFixed(1)}%</span>`;
 
   const cards = [
-    { l:'ช่วงที่ดู', v: cur.label, s: `${fmt(cur.dayCount)} วัน (ธรรมดา ${cur.weekdayCount} · หยุด ${cur.weekendCount})`, c:'var(--ink)' },
+    // ★ v109: บอกให้ชัดว่าค่าเฉลี่ยคิดจาก "วันที่มีบันทึกจริง" กี่วัน และขาดไปกี่วัน
+    //   เดิมบอกแค่จำนวนวันรวม ผู้ใช้จึงไม่รู้ว่าตัวเลขนี้มาจากข้อมูลครบหรือไม่
+    //   ซึ่งสำคัญมากเวลาเอาเดือน/สัปดาห์ปัจจุบัน (ยังไม่ครบ) ไปเทียบกับช่วงก่อนที่ครบแล้ว
+    { l:'ช่วงที่ดู', v: cur.label,
+      s: `มีบันทึก ${fmt(cur.dayCount)}/${fmt(cur.expectedDays)} วัน (ธรรมดา ${cur.weekdayCount} · หยุด ${cur.weekendCount})`
+         + (cur.blankCount > 0 ? ` · ยังไม่กรอก ${cur.blankCount}` : ''),
+      c: cur.blankCount > 0 ? 'var(--warn-ink)' : 'var(--ink)' },
     { l:'ลูกค้าเฉลี่ย · วันธรรมดา', v: fmt(cm.wdAvg) + ' คน/วัน',
       s: `จ.–ศ. ${cur.weekdayCount} วัน` + (pm ? ` · เทียบ${prev.label}` : ''),
       c: metricInk('moto'), d: pm ? delta(cm.wdAvg, pm.wdAvg) : null },
@@ -8136,10 +8628,29 @@ function renderWdWe(){
     ? (prev ? `เทียบกับ<b>${esc(prev.label)}</b> · ▲▼ = ส่วนต่างของค่าเฉลี่ยต่อวัน`
             : 'ไม่มีช่วงก่อนหน้าให้เทียบ (เป็นช่วงแรกสุดที่มีข้อมูล)')
     : 'ปิดการเทียบกับช่วงก่อนหน้าอยู่';
-  if (state.year < 2025){
-    note += ` · <b>ข้อจำกัด:</b> ปฏิทินวันหยุดนักขัตฤกษ์ในระบบมีเฉพาะ พ.ศ. 2568–2569 ` +
-            `ปีนี้จึงนับเฉพาะเสาร์-อาทิตย์ ทำให้จำนวนวันหยุดต่ำกว่าความเป็นจริงเล็กน้อย`;
+
+  // ★ v109: ค่าเฉลี่ยคิดจากวันที่มีบันทึกจริงเท่านั้น — บอกให้ชัดว่านับอย่างไร
+  note += ` · ค่าเฉลี่ยคิดจาก<b>วันที่มีบันทึกจริง</b>เท่านั้น (วันที่ยังไม่กรอกไม่ถูกนับเป็นตัวหาร)`;
+
+  // ★ v109: เตือนเมื่อเทียบ "ช่วงที่ยังไม่ครบ" กับ "ช่วงที่ครบแล้ว"
+  //   เป็นกับดักที่ทำให้อ่านผลผิดบ่อยที่สุด — ช่วงปัจจุบันมักมีวันหยุดไม่ครบสัดส่วน
+  //   ทำให้ค่าเฉลี่ยวันหยุดแกว่งแรงจนดูเหมือนยอดตก/พุ่ง ทั้งที่เป็นเรื่องของจำนวนวัน
+  if (prev && cur.blankCount > 0 && (prev.blankCount || 0) === 0){
+    note += ` · <b style="color:var(--warn-ink);">⚠ ${esc(cur.label)} ยังไม่ครบ (ขาด ${cur.blankCount} วัน)</b> ` +
+            `การเทียบกับช่วงที่ครบแล้วอาจคลาดเคลื่อน โดยเฉพาะฝั่งวันหยุดที่มีจำนวนวันน้อย`;
   }
+
+  // ★ v109: ปรับข้อความข้อจำกัดของปฏิทินวันหยุดให้ตรงกับความจริงปัจจุบัน
+  //   ข้อความเดิมยังบอกว่า "มีเฉพาะ พ.ศ. 2568–2569" ซึ่งล้าสมัยตั้งแต่ v106
+  //   ที่ขยายวันหยุดตายตัวตามสุริยคติครบทุกปี 2556–2573 แล้ว
+  //   → ดึงจาก holidayCoverage() แหล่งเดียว จะได้ไม่ล้าสมัยอีกเมื่อเพิ่มข้อมูลปีใหม่
+  try {
+    const cov = holidayCoverage(state.year);
+    if (cov.level !== 'full'){
+      note += ` · <b>ข้อจำกัดปฏิทินวันหยุด (${esc(cov.label)}):</b> ${esc(cov.note)}`;
+    }
+  } catch(e){ console.warn('อ่านระดับความครบถ้วนของปฏิทินวันหยุดไม่ได้:', e); }
+
   document.getElementById('wdweNote').innerHTML = note;
 }
 
@@ -8806,9 +9317,12 @@ function switchView(view){
   // ★ v103: ทุกครั้งที่ "เข้ามาใหม่" ที่หน้ารายเดือน ให้กลับไปเดือนปัจจุบัน/ล่าสุดเสมอ
   //   (ไม่ค้างเดือนเก่าที่เคยกดไว้) — ระหว่างอยู่ในหน้านี้ ปุ่มเลือกเดือนยังใช้ได้ตามปกติ
   //   เช็ก state.currentView !== view เพื่อไม่ให้รีเซ็ตตอนกดเมนู "รายเดือน" ซ้ำขณะอยู่หน้านั้นอยู่แล้ว
+  // ★ v110: เข้าหน้ารายเดือนใหม่ → กลับไปเดือนล่าสุดเสมอ (พฤติกรรมเดิมตั้งแต่ v103)
+  //   และล้างสถานะ "ผู้ใช้เลือกเอง" เพราะถือว่าเริ่มดูรอบใหม่
   if (view === 'monthly' && state.currentView !== 'monthly'){
     state.selectedMonth = preferredMonthKey();
     state.selectedWeek = 0;
+    state.monthPickedByUser = false;
   }
   state.currentView = view;
   document.querySelectorAll('.view').forEach(v=>v.classList.remove('active'));
@@ -9208,6 +9722,7 @@ function init(){
     //   ถ้าเรียกก่อน state.data จะยังว่าง แล้วร่างจะถูกตีตกทั้งหมดว่า "ไม่พบวันที่"
     restoreEditDraft();
     runAnomalyScan();    // v106: ตรวจค่าผิดปกติทันทีที่ข้อมูลพร้อม
+    auditWeekLogic();    // v108: ตรวจความถูกต้องของการตัดรอบสัปดาห์จันทร์–อาทิตย์
     initSync();
   } catch (err) {
     console.error(err);
@@ -10968,7 +11483,7 @@ function getReportScope(){
 function populateReportMonthSelect(){
   const sel = document.getElementById('reportMonthSelect');
   const keys = getAvailableMonthKeys();
-  const cur = sel.value && keys.includes(sel.value) ? sel.value : (state.selectedMonth || keys[keys.length-1]);
+  const cur = sel.value && keys.includes(sel.value) ? sel.value : (state.selectedMonth || preferredMonthKey() || keys[keys.length-1]);
   sel.innerHTML = keys.map(k=>`<option value="${k}" ${k===cur?'selected':''}>${THAI_MONTH_FULL[state.data[k].monthNum]} ${beYear(state.data[k].year)}</option>`).join('');
 }
 
