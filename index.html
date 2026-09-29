@@ -1,5 +1,163 @@
 <!DOCTYPE html>
 <!--
+  ระบบวิเคราะห์ยอดลูกค้า-ยอดรถยนต์ · เวอร์ชัน v113
+  v113 — นำแผงเลือกธีมสีกลับมา แต่ปิดใช้งาน 4 ธีมตามที่ผู้ใช้ระบุ
+
+  ═══════════════════════════════════════════════════════════════
+  ■ ธีมที่ปิด — ยืนยันตัวตนจากภาพหน้าจอ ไม่ได้เดา
+  ═══════════════════════════════════════════════════════════════
+   การ์ดหลัก (.hero-card) ไล่สีจาก a1 → a2 → d1 จึงใช้ลำดับสีนี้เทียบกับภาพที่ส่งมา:
+     ภาพ 1  ส้ม → ม่วง        = sunset   (#F97316 → #DC2626 → #6366F1)
+     ภาพ 2  เขียว → ส้ม        = emerald  (#008960 → #00553C → #D2691E)
+     ภาพ 3  ม่วงคราม → ชมพู   = indigo   (#4F46E5 → #7C3AED → #DB2777)
+     ภาพ 4  ฟ้า → ม่วง        = ocean    (#0EA5E9 → #0369A1 → #8B5CF6)
+   ธีมที่ยังใช้ได้ตามเดิม 5 ธีม: Harbor · Sunrise Sorbet · Neon · Forest · สีประจำวัน
+
+  ■ วิธีที่เลือกใช้ — ปิดที่จุดเดียว ไม่ลบนิยามทิ้ง
+   const DISABLED_ACCENT_THEMES = ['emerald','indigo','ocean','sunset'];
+   ★ เก็บนิยามไว้ใน ACCENT_THEMES ตามเดิม เพราะ:
+     1. เปิดกลับมาใช้ทีหลังได้ด้วยการลบคีย์ออกจากลิสต์บรรทัดเดียว
+     2. เครื่องที่เคยเลือกธีมเหล่านี้ยังมีค่าค้างใน localStorage — ถ้าลบนิยามทิ้ง
+        โค้ดที่อ่านค่าเก่าจะได้ undefined แทนที่จะถอยไปธีมเริ่มต้นอย่างเรียบร้อย
+   ★ ปิดครบทุกทางเข้า ไม่ใช่แค่ซ่อนปุ่ม:
+     • themeSwatchesHtml()   — กรองออกจากรายการสวอตช์ (ทั้งเดสก์ท็อปและมือถือ)
+     • applyAccentTheme()    — ถูกเรียกด้วยคีย์ที่ปิดอยู่ → ถอยไปธีมเริ่มต้นเงียบๆ
+     • resolveAccentTheme()  — กันหลุดผ่านเส้นทางอื่น
+     • loadSavedPreferences()— เครื่องเก่าที่เคยเลือกธีมที่ถูกปิด จะถอยไปธีมเริ่มต้น
+                               และ "เขียนค่าใหม่ทับ" ไม่ให้ค้างคีย์ที่ใช้ไม่ได้ตลอดไป
+
+  ═══════════════════════════════════════════════════════════════
+  ■ ผลตรวจทาน v113 (ผ่านทั้งหมด)
+  ═══════════════════════════════════════════════════════════════
+   แผงธีม   : กลับมาครบทั้งแถบข้างและเมนูมือถือ · สวอตช์เหลือ 5 อัน ตรงกันทั้งสองชุด
+   ปิด 4 ธีม : ไม่อยู่ในตัวเลือก · isAccentThemeEnabled() = false ทั้ง 4
+              · เรียกตรงๆ ก็ถอยไป "harbor" ทุกตัว ทั้ง applyAccentTheme และ resolveAccentTheme
+   ธีมที่เหลือ: สลับได้ครบ 5 ธีม · กดสวอตช์จริงแล้ว --gate-a1 เปลี่ยนตามจริง · บันทึกค่าได้
+              · ธีม "สีประจำวัน" ยังคำนวณสีตามวันได้ปกติ
+   เครื่องเก่า: จำลอง localStorage ค้างที่ 'ocean' → ถอยไป harbor และเขียนค่าใหม่ทับ
+   การเข้าถึง : 5 ธีม × 2 โหมด × 6 ตัวชี้วัด = 60 ชุด ผ่าน WCAG AA
+   ถดถอย    : 10 ชุดทดสอบเดิมผ่านทั้งหมด (เทียบรายวัน/เดือน/ปี · สัปดาห์ · วันธรรมดา-วันหยุด
+              · ยอดสูงสุด · เดือนล่าสุด · เพิ่มปีใหม่ · ระบบรวม 126 ชุด)
+  ───────────────────────────────────────────────────────────────
+  ระบบวิเคราะห์ยอดลูกค้า-ยอดรถยนต์ · เวอร์ชัน v112
+  v112 — เพิ่มโหมดเปรียบเทียบ "รายวัน" + ถอดแผงเลือกธีมสีออกจากหน้าจอ
+
+  ═══════════════════════════════════════════════════════════════
+  ■ 1) เปรียบเทียบได้อิสระครบ 3 ระดับ: รายวัน / รายเดือน / รายปี
+  ═══════════════════════════════════════════════════════════════
+   เดิมมี 2 โหมด (รายเดือน v106 · รายปี v111) — v112 เพิ่ม "รายวัน" ให้ครบ
+   เลือกวันไหนก็ได้ 2 วันมาเทียบกัน ข้ามเดือน/ข้ามปีได้อิสระ
+
+   ★ ใช้ <input type="date"> ไม่ใช่ดรอปดาวน์ เพราะข้อมูลมีกว่า 4,900 วัน
+     ดรอปดาวน์ขนาดนั้นเลื่อนหาไม่ไหว · input วันที่เปิดปฏิทินของเครื่องให้เลือกตรงๆ
+     และบนมือถือได้ตัวเลือกวันที่ของ OS มาฟรี
+   ★ จำกัด min/max ตามช่วงข้อมูลจริง (2556-01-01 ถึงวันล่าสุดที่มี)
+     กันผู้ใช้เลือกวันที่ไม่มีทางมีข้อมูล
+   ★ ค่าเริ่มต้น: วันล่าสุดที่มีบันทึก เทียบกับ "วันเดียวกันของสัปดาห์ก่อน"
+     ไม่ใช่ "เมื่อวาน" — เพราะยอดห้างขึ้นกับวันในสัปดาห์อย่างรุนแรง
+     เทียบเสาร์กับศุกร์แล้วบอกว่ายอดตก เป็นข้อสรุปที่ผิด
+   ★ ปุ่มลัด "− 1 สัปดาห์" และ "− 1 ปี" — สองการเทียบที่มีความหมายที่สุด
+   ★ ★ เตือนเมื่อเทียบคนละวันในสัปดาห์ (เช่น เสาร์ vs อังคาร)
+     พร้อมแนะนำให้กดปุ่มลัด — กับดักที่ทำให้อ่านผลผิดบ่อยที่สุดในการเทียบรายวัน
+   ★ แสดงบริบทของแต่ละวันด้วย: วันในสัปดาห์ · วันธรรมดา/วันหยุด · สัปดาห์ที่เท่าไร
+     · วันหยุดนักขัตฤกษ์ · งานกิจกรรมของวันนั้น — ตัวเลขอย่างเดียวตีความไม่ได้
+     ถ้าไม่รู้ว่าวันนั้นมีอีเวนต์หรือเป็นวันหยุดยาว
+
+   ตารางแสดงครบ 6 ตัวชี้วัด: ยอดวันที่ 1 · ยอดวันที่ 2 · ต่าง (หน่วย) · ต่าง (%)
+
+  ═══════════════════════════════════════════════════════════════
+  ■ 2) ถอดแผง "ธีมสี" ออกจากหน้าจอ
+  ═══════════════════════════════════════════════════════════════
+   ถอดออกทั้งแถบข้าง (เดสก์ท็อป) และเมนูมือถือ ตามที่ผู้ใช้ขอ
+   ★ ไม่ได้ลบโค้ดธีมทิ้ง — เพียงถอด "ปุ่มกด" ออก
+     เหตุผล: ตัวแปร --gate-* ถูกอ้างอิงทั่วทั้งไฟล์ (การ์ด ปุ่ม กราฟ รายงาน A4)
+     การถอดระบบธีมออกจริงจะกระทบหลายร้อยจุดโดยไม่ได้ประโยชน์เพิ่ม
+     ระบบจึงล็อกไว้ที่ธีมเริ่มต้น "Harbor" และถ้าวันหลังอยากเปิดปุ่มกลับมา
+     ก็แค่เอาบล็อก markup กลับมาใส่ 2 จุด (มีคอมเมนต์กำกับตำแหน่งไว้แล้ว)
+   ★ ปุ่มเลือกโหมดแสดงผล (สว่าง / อัตโนมัติ / มืด) ยังอยู่ครบตามเดิม
+
+  ═══════════════════════════════════════════════════════════════
+  ■ ผลตรวจทาน v112 (ผ่านทั้งหมด)
+  ═══════════════════════════════════════════════════════════════
+   ถอดธีมสี : ไม่มีแผง/ปุ่มสวอตช์/คำว่า "ธีมสี" บนหน้าจอ · ธีมเริ่มต้นทำงานปกติ
+              · ปุ่มโหมดสว่าง/อัตโนมัติ/มืด ยังครบ 2 ชุด
+   เทียบรายวัน: ค่าเริ่มต้นวันในสัปดาห์ตรงกัน · จำกัดช่วงตามข้อมูลจริง
+              · ยอด/ผลต่างหน่วย/% ตรงกับข้อมูลดิบ · ปุ่มลัดและปุ่มสลับทำงาน
+              · เตือนเมื่อคนละวันในสัปดาห์ และไม่เตือนเมื่อตรงกัน
+   สลับโหมด  : รายวัน/รายเดือน/รายปี สลับไปมา 6 ครั้งไม่พัง · ทุกโหมดเรนเดอร์ตารางได้
+   ค่าสุดขั้ว : 8 เคส (วันที่ว่าง · 30 ก.พ. · นอกช่วงข้อมูล · วันเดียวกันสองฝั่ง
+              · ปีที่ไม่มี · shiftISO ค่าพัง · initCompare ซ้ำ 5 รอบ
+              · เทียบ 40 คู่วันข้ามปี) ไม่ throw
+   ถดถอย     : 9 ชุดทดสอบเดิมผ่านทั้งหมด
+  ───────────────────────────────────────────────────────────────
+  ระบบวิเคราะห์ยอดลูกค้า-ยอดรถยนต์ · เวอร์ชัน v111
+  v111 — รองรับการเพิ่มปีย้อนหลัง/ปีใหม่ได้จริง + เพิ่มการเปรียบเทียบรายปี
+
+  ═══════════════════════════════════════════════════════════════
+  ■ คำถามที่ 1: เพิ่มปีย้อนหลังและปีต่อๆ ไปได้หรือไม่ — ได้ แต่เดิมมีเงื่อนไข
+  ═══════════════════════════════════════════════════════════════
+  ผลตรวจฝั่งหน้าเว็บ: รองรับสมบูรณ์อยู่แล้ว ไม่มีปีตายตัวฝังไว้ที่ไหน
+    ทดสอบเพิ่มปี พ.ศ. 2554 (ก่อนช่วงข้อมูลเดิม) และ พ.ศ. 2573 (อนาคต)
+    → เรนเดอร์ครบ 7 หน้าทั้งสองปี · สถิติรายเดือน/รายสัปดาห์คำนวณได้
+    · ผ่านตัวตรวจการนับสัปดาห์ · ดรอปดาวน์ปีขึ้นครบ · สถิติสูงสุดตลอดกาลรวมทุกปี
+    · ตารางเทียบรายปีขยายเป็น 16 แถวเอง
+  ผลตรวจฝั่งดึงข้อมูล: แบ่งเป็น 2 ช่องทาง
+    • Apps Script (ช่องทางหลัก) — Code_41.gs มี listYearSheets_() สแกนแท็บทั้งไฟล์
+      แล้วจับปีจากชื่อแท็บเอง → เพิ่มแท็บปีไหนก็เจอทันที ไม่ต้องแก้โค้ด
+    • gviz (ช่องทางสำรอง เมื่อ Apps Script ล่ม) — ★ นี่คือจุดที่มีข้อจำกัด
+      yearsToSync() เดิมคืน "ปีที่ฝังในไฟล์ + ปีปัจจุบัน + ปีถัดไป" เท่านั้น
+      ถ้าเพิ่มแท็บปีย้อนหลังที่ไม่เคยฝังไว้ (เช่น พ.ศ. 2554) ระบบจะไม่มีวันไปดึง
+      และผู้ใช้จะไม่เห็นข้อมูลปีนั้นเลยโดยไม่มีข้อความบอกว่าทำไม
+
+  ■ วิธีแก้ (3 ชั้น)
+   1. ขยายเป็น "ช่วงต่อเนื่อง" lo-2 … hi+2 จากขอบของปีที่รู้จัก
+      ★ ต้องเติมช่องว่างตรงกลางด้วย ไม่ใช่แค่ขยายปลายสองข้าง
+        ถ้าขยายแค่ปลาย แล้วเพิ่มแท็บปีที่อยู่ตรงกลางช่องว่าง (มี 2554 กับ 2556
+        แล้วเพิ่ม 2555 ทีหลัง) ปีนั้นจะไม่มีวันถูกดึงเลย
+   2. จำปีที่เคยดึงสำเร็จลง localStorage (rememberDiscoveredYears)
+      ปีที่เจอครั้งหนึ่งแล้วจะถูกดึงทุกครั้งต่อไป แม้อยู่นอกช่วง
+   3. รวมปีที่มีอยู่ใน state แล้ว — กันข้อมูลที่โหลดมาแล้วหายตอนซิงค์รอบถัดไป
+   ★ มีเพดานความปลอดภัย 1990 … ปีปัจจุบัน+3 กันข้อมูลเพี้ยนทำให้ไล่ดึงเป็นร้อยปี
+   ★ ต้นทุนคือ fetch ที่ล้มเหลวไม่กี่ครั้ง ซึ่งระบบเก็บใน failed แล้วรายงานรวมครั้งเดียวอยู่แล้ว
+   ผลลัพธ์: จาก 15 ปี (2556–2570) เป็นช่วงต่อเนื่อง 2552–2572 และขยายตามข้อมูลที่เพิ่มเข้ามา
+
+  ═══════════════════════════════════════════════════════════════
+  ■ คำถามที่ 2: ควรเพิ่มการเปรียบเทียบรายปีหรือไม่ — ควร และเพิ่มแล้ว
+  ═══════════════════════════════════════════════════════════════
+  ของเดิมมีการเทียบข้ามปีอยู่บ้าง แต่กระจัดกระจายและไม่ตอบคำถามระดับปี:
+    · การ์ดวันธรรมดา/วันหยุด โหมด "รายปี" — เทียบกับปีก่อนหน้าเท่านั้น เลือกเองไม่ได้
+    · หน้ายอดสูงสุด "เทียบแบบรายปี" — เทียบเฉพาะวันพีคของแต่ละปี ปีละ 1 แถว
+    · แผงเปรียบเทียบ (v106) — เทียบได้ทีละเดือน ไม่มีระดับทั้งปี
+  → เพิ่มโหมด "เทียบรายปี" เข้าไปในแผงเปรียบเทียบเดิม (หน้ารายเดือน)
+    เลือกปีใดก็ได้ 2 ปีมาเทียบกัน ค่าเริ่มต้นคือปีล่าสุด vs ปีก่อนหน้า
+    แสดงครบทั้ง 6 ตัวชี้วัด: ยอดรวม · เฉลี่ย/วัน · ต่างวันธรรมดา · ต่างวันหยุด
+    พร้อมสรุปรายปี (จำนวนเดือน/วันที่มีข้อมูล · วันที่ลูกค้าสูงสุดของปีนั้น)
+
+  ■ จุดตัดสินใจสำคัญของ computeYearStats()
+   ★ ไม่เอาค่าเฉลี่ยรายเดือนมาเฉลี่ยซ้ำ (average of averages) เพราะจะผิด
+     แต่ละเดือนมีจำนวนวันไม่เท่ากัน — เดือนที่มีข้อมูล 3 วันจะมีน้ำหนักเท่าเดือนเต็ม
+     จึงคิดจาก "จำนวนวันที่มีบันทึกจริงทั้งปี" เป็นตัวหารเดียว
+   ★ ใช้ hasAnyRecord() ตัววัดเดียวกับทั้งระบบ (v109) จึงเทียบกับหน้าอื่นได้ตรง
+     ตรวจแล้ว: ยอดรวมทั้งปี = ผลบวกรายวัน = ผลรวมสถิติรายเดือน (17,194,378)
+   ★ เตือนเมื่อจำนวนเดือนที่มีข้อมูลไม่เท่ากัน — กับดักหลักของการเทียบรายปี
+     ปีปัจจุบันมักมีข้อมูล 7–9 เดือน ถ้าเทียบยอดรวมกับปีเต็มจะดูเหมือนตกฮวบ
+     ระบบจึงบอกให้ดูที่ "เฉลี่ย/วัน" แทน
+
+  ═══════════════════════════════════════════════════════════════
+  ■ ผลตรวจทาน v111 (ผ่านทั้งหมด)
+  ═══════════════════════════════════════════════════════════════
+   เพิ่มปีใหม่ : ปี 2554 (ย้อนหลัง) + 2573 (อนาคต) → 7 หน้า × 2 ปี เรนเดอร์ครบ
+                · ดรอปดาวน์ 16 ปี · ตารางเทียบรายปี 16 แถว · สถิติตลอดกาลรวมทุกปี
+                · ผ่านตัวตรวจการนับสัปดาห์ · ปีที่ไม่มีปีก่อนหน้า totalPrev=0 ไม่ error
+   ซิงค์ปีใหม่ : ช่วงปีต่อเนื่อง 2552–2572 ไม่มีรูตรงกลาง · จำปีที่เคยเจอได้ · มีเพดาน
+   เทียบรายปี : ยอดรวม = ผลบวกรายวัน = ผลรวมรายเดือน · เฉลี่ย/วันคิดจากวันที่มีบันทึกจริง
+                · วันธรรมดา+วันหยุด = วันทั้งหมด · เตือนเมื่อเดือนไม่เท่ากัน
+                · สลับโหมด/สลับสองช่วงได้ทั้งสองโหมด · ทดสอบ 30 คู่ปี ไม่ error
+   ค่าสุดขั้ว  : 6 เคส (ปีไม่มีจริง · ปีที่ทุกวันเป็น 0 · ค่าว่าง · เทียบปีเดียวกัน
+                · initCompare ซ้ำ 5 รอบ) ไม่ throw
+   ถดถอย     : 9 ชุดทดสอบเดิมผ่านทั้งหมด (สัปดาห์ · วันธรรมดา/วันหยุด · ยอดสูงสุด
+                · เดือนล่าสุด · ระบบรวม 126 ชุด · คอนทราสต์ 108 ชุด)
+  ───────────────────────────────────────────────────────────────
   ระบบวิเคราะห์ยอดลูกค้า-ยอดรถยนต์ · เวอร์ชัน v110
   v110 — แก้ "หน้าจอค้างเดือนเก่า" หลังซิงค์ข้อมูลใหม่จาก Google Sheets
 
@@ -3074,8 +3232,8 @@ main .card{max-width:100%;}
         </button>
       </div>
       </div>
-      <!-- v102: มี 8 ธีมแล้ว (เดิม 6) เรียงแถวเดียวจะล้นแถบข้างที่กว้าง 16rem
-           จึงย้ายป้ายขึ้นบรรทัดบน แล้วให้สวอตช์ตัดบรรทัดเองด้วย flex-wrap -->
+      <!-- v113: นำแผง "ธีมสี" กลับมา แต่ปิดใช้งาน 4 ธีมตามที่ผู้ใช้ระบุ
+           (ดู DISABLED_ACCENT_THEMES ในสคริปต์ — ปิดที่จุดเดียว มีผลทุกที่) -->
       <div class="px-2 py-2 mt-1">
         <span class="text-xs font-medium block mb-2" style="color:var(--ink-soft);">ธีมสี</span>
         <div id="themeSwatches" class="flex items-center flex-wrap gap-2"></div>
@@ -3408,17 +3566,36 @@ main .card{max-width:100%;}
                  justify-content:space-between;gap:.6rem;font-size:.85rem;font-weight:600;">
           <span class="flex items-center gap-2">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--gate-a1)" stroke-width="2"><path d="M3 3v18h18"/><path d="M7 15l4-4 3 3 5-6"/></svg>
-            เปรียบเทียบสองช่วงเวลา
+            เปรียบเทียบสองช่วงเวลา (รายเดือน / รายปี)
           </span>
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"
                style="color:var(--ink-soft);"><path d="M6 9l6 6 6-6"/></svg>
         </summary>
         <div style="padding:0 1.15rem 1.15rem;">
-          <div class="flex flex-wrap items-center gap-2 mb-4">
+          <!-- ★ v111: เลือกได้ว่าจะเทียบ "รายเดือน" หรือ "รายปี" (ทั้งปี) -->
+          <!-- ★ v112: เพิ่มโหมด "รายวัน" — เลือกวันไหนก็ได้มาเทียบกัน ข้ามเดือน/ข้ามปีได้อิสระ -->
+          <div class="seg" id="compareModeSeg" style="margin-bottom:.75rem;">
+            <button class="compareModeBtn seg__btn" data-mode="day" type="button">เทียบรายวัน</button>
+            <button class="compareModeBtn seg__btn" data-mode="month" type="button">เทียบรายเดือน</button>
+            <button class="compareModeBtn seg__btn" data-mode="year" type="button">เทียบรายปี</button>
+          </div>
+          <!-- โหมดรายเดือน/รายปี ใช้ดรอปดาวน์ -->
+          <div class="flex flex-wrap items-center gap-2 mb-4" id="compareSelectRow">
             <select id="compareA" class="text-sm px-3 py-2 rounded-xl card" aria-label="ช่วงเวลาที่ 1"></select>
             <button id="compareSwap" type="button" class="text-sm px-3 py-2 rounded-xl card" title="สลับสองช่วง" aria-label="สลับสองช่วง">⇄</button>
             <select id="compareB" class="text-sm px-3 py-2 rounded-xl card" aria-label="ช่วงเวลาที่ 2"></select>
-            <span class="text-xs" style="color:var(--ink-soft);">เทียบข้ามปีได้</span>
+            <span class="text-xs" id="compareHint" style="color:var(--ink-soft);"></span>
+          </div>
+          <!-- ★ โหมดรายวันใช้ช่องเลือกวันที่จริง (input type=date) แทนดรอปดาวน์
+               เพราะข้อมูลมีกว่า 4,900 วัน — ดรอปดาวน์ยาวขนาดนั้นเลื่อนหาไม่ไหว
+               และ input วันที่ยังเปิดปฏิทินของเครื่องให้เลือกได้โดยตรง -->
+          <div class="flex flex-wrap items-center gap-2 mb-4" id="compareDateRow" style="display:none;">
+            <input type="date" id="compareDateA" class="text-sm px-3 py-2 rounded-xl card" aria-label="วันที่ 1">
+            <button id="compareDateSwap" type="button" class="text-sm px-3 py-2 rounded-xl card" title="สลับสองวัน" aria-label="สลับสองวัน">⇄</button>
+            <input type="date" id="compareDateB" class="text-sm px-3 py-2 rounded-xl card" aria-label="วันที่ 2">
+            <button id="compareDatePrevWeek" type="button" class="text-xs px-2.5 py-2 rounded-lg card" title="ตั้งวันที่ 2 เป็นวันเดียวกันของสัปดาห์ก่อน">− 1 สัปดาห์</button>
+            <button id="compareDatePrevYear" type="button" class="text-xs px-2.5 py-2 rounded-lg card" title="ตั้งวันที่ 2 เป็นวันเดียวกันของปีก่อน">− 1 ปี</button>
+            <span class="text-xs" id="compareDateHint" style="color:var(--ink-soft);"></span>
           </div>
           <div id="compareResult"></div>
         </div>
@@ -4308,13 +4485,40 @@ function buildDailyTheme(when){
 /** ธีมที่ใช้จริง — แปลงคีย์ 'daily' เป็นชุดสีของวันนี้ */
 function resolveAccentTheme(key){
   if (key === 'daily') return buildDailyTheme();
-  return ACCENT_THEMES[key] || ACCENT_THEMES[DEFAULT_ACCENT];
+  // v113: ธีมที่ปิดอยู่ให้คืนธีมเริ่มต้นแทน (กันหลุดผ่านเส้นทางอื่น)
+  return (isAccentThemeEnabled(key) ? ACCENT_THEMES[key] : null) || ACCENT_THEMES[DEFAULT_ACCENT];
 }
 const DEFAULT_ACCENT = 'harbor';
+
+// ═══════════════════════════════════════════════════════════════
+// v113 — ธีมที่ปิดใช้งาน (ซ่อนจากตัวเลือก แต่ไม่ลบนิยามทิ้ง)
+// ───────────────────────────────────────────────────────────────
+// ผู้ใช้ระบุ 4 ธีมจากภาพหน้าจอที่ส่งมา — ยืนยันตัวตนด้วยการไล่สีของการ์ดหลัก
+// (.hero-card ใช้ a1 → a2 → d1) เทียบกับสีที่เห็นในแต่ละภาพ:
+//   ภาพ 1  ส้ม → ม่วง          = sunset   (#F97316 → #DC2626 → #6366F1)
+//   ภาพ 2  เขียว → ส้ม          = emerald  (#008960 → #00553C → #D2691E)
+//   ภาพ 3  ม่วงคราม → ชมพู     = indigo   (#4F46E5 → #7C3AED → #DB2777)
+//   ภาพ 4  ฟ้า → ม่วง          = ocean    (#0EA5E9 → #0369A1 → #8B5CF6)
+// ★ เก็บนิยามไว้ใน ACCENT_THEMES ตามเดิม ไม่ลบทิ้ง เพราะ:
+//   1. เปิดกลับมาใช้ทีหลังได้ด้วยการลบคีย์ออกจากลิสต์นี้บรรทัดเดียว
+//   2. เครื่องที่เคยเลือกธีมเหล่านี้ไว้ยังมีค่าค้างใน localStorage
+//      ถ้าลบนิยามทิ้ง โค้ดที่อ่านค่าเก่าจะได้ undefined แทนที่จะถอยไปธีมเริ่มต้นอย่างเรียบร้อย
+// ★ ปิดที่จุดเดียวนี้ มีผลทั้งรายการสวอตช์ · การตรวจสอบตอนโหลดค่าที่บันทึกไว้
+//   · และ applyAccentTheme() ที่จะถอยไปธีมเริ่มต้นถ้าถูกเรียกด้วยคีย์ที่ปิดอยู่
+// ═══════════════════════════════════════════════════════════════
+const DISABLED_ACCENT_THEMES = ['emerald', 'indigo', 'ocean', 'sunset'];
+
+/** ธีมนี้ยังให้ผู้ใช้เลือกได้อยู่หรือไม่ */
+function isAccentThemeEnabled(key){
+  return !!ACCENT_THEMES[key] && !DISABLED_ACCENT_THEMES.includes(key);
+}
 function applyAccentTheme(key, skipRender){
+  // ★ v113: คีย์ที่ถูกปิดใช้งาน (หรือไม่รู้จัก) ให้ถอยไปธีมเริ่มต้นอย่างเงียบๆ
+  //   ครอบคลุมทั้งค่าที่ค้างใน localStorage จากก่อนหน้า และการเรียกจากโค้ดส่วนอื่น
+  const useKey = isAccentThemeEnabled(key) ? key : DEFAULT_ACCENT;
   // ★ v104: 'daily' เป็นธีมไดนามิก — ต้อง resolve ใหม่ทุกครั้ง ไม่ใช่อ่านค่าคงที่จากตาราง
-  const t = resolveAccentTheme(key);
-  state.accentTheme = ACCENT_THEMES[key] ? key : DEFAULT_ACCENT;
+  const t = resolveAccentTheme(useKey);
+  state.accentTheme = useKey;
   state.accentDow = (t && typeof t.dow === 'number') ? t.dow : null;  // จำไว้เช็กตอนข้ามวัน
   const root = document.documentElement.style;
   root.setProperty('--gate-a1', t.a1); root.setProperty('--gate-a2', t.a2);
@@ -4348,7 +4552,8 @@ function bindThemeSwatches(){
 }
 
 function themeSwatchesHtml(){
-  return Object.keys(ACCENT_THEMES).map(key=>{
+  // ★ v113: แสดงเฉพาะธีมที่เปิดใช้งาน — 4 ธีมที่ปิดไว้จะไม่ปรากฏเป็นตัวเลือก
+  return Object.keys(ACCENT_THEMES).filter(isAccentThemeEnabled).map(key=>{
     const t = ACCENT_THEMES[key];
     const active = state.accentTheme===key ? 'active' : '';
     // v102: ไล่ 3 สีจริงของธีม (หลัก→รอง→เน้น) แทน 2 สี — แยกธีมที่สีหลักใกล้กันได้ง่ายขึ้น
@@ -4486,6 +4691,7 @@ const state = {
   wdweWeekNo: null,        // สัปดาห์ที่เลือกในโหมดรายสัปดาห์
   wdweCompare: true,       // เปิด/ปิดการเทียบกับช่วงก่อนหน้า
   // ★ v110: จำว่าผู้ใช้ "เลือกเดือนเอง" หรือยัง — ถ้ายัง ระบบจะตามข้อมูลล่าสุดเสมอ
+  compareMode: 'month',      // v111: โหมดเปรียบเทียบ — 'month' | 'year'
   monthPickedByUser: false,  // หน้ารายเดือน
   wdwePickedByUser: false,   // การ์ดวันธรรมดา/วันหยุด
   entryMode: 'single',     // v88: โหมดฟอร์มบันทึก — 'single' = ทีละวัน · 'range' = หลายวัน
@@ -6578,40 +6784,428 @@ function renderForecastCard(monthKey){
     </p>`;
 }
 
+// ═══════════════════════════════════════════════════════════════
+// v111 — สถิติรวมทั้งปี (ใช้กับการเปรียบเทียบรายปี)
+// ───────────────────────────────────────────────────────────────
+// ★ ทำไมไม่บวกยอดรายเดือนมารวมกันเฉยๆ:
+//   ค่าเฉลี่ยต่อวันของทั้งปีต้องคิดจาก "จำนวนวันที่มีบันทึกจริงทั้งปี"
+//   ถ้าเอาค่าเฉลี่ยรายเดือนมาเฉลี่ยอีกที (average of averages) จะผิด
+//   เพราะแต่ละเดือนมีจำนวนวันไม่เท่ากัน — เดือนที่มีข้อมูล 3 วันจะมีน้ำหนักเท่าเดือนเต็ม
+// ★ ใช้ hasAnyRecord() ตัววัดเดียวกับทั้งระบบ จึงเทียบกับหน้าอื่นได้ตรง
+// ═══════════════════════════════════════════════════════════════
+function computeYearStats(yearCE){
+  const bundle = state.years[yearCE];
+  if (!bundle) return null;
+  const all = [];
+  MONTH_KEY_ORDER.forEach(k => {
+    const m = bundle[k];
+    if (m && Array.isArray(m.daily)) all.push(...m.daily);
+  });
+  if (!all.length) return null;
+  const recorded = all.filter(hasAnyRecord);
+  const wd = recorded.filter(d => d.section === 'weekday');
+  const we = recorded.filter(d => d.section === 'weekend');
+  const monthsWith = MONTH_KEY_ORDER.filter(k => bundle[k] && bundle[k].daily.some(hasAnyRecord));
+
+  const totals = {}, avg = {}, wdAvg = {}, weAvg = {};
+  METRIC_KEYS.forEach(k => {
+    totals[k] = recorded.reduce((s,d) => s + (Number(d[k]) || 0), 0);
+    avg[k]    = safeDiv(totals[k], recorded.length);
+    wdAvg[k]  = wd.length ? wd.reduce((s,d)=>s+(Number(d[k])||0),0)/wd.length : 0;
+    weAvg[k]  = we.length ? we.reduce((s,d)=>s+(Number(d[k])||0),0)/we.length : 0;
+  });
+  // วันพีคของปี (ยึดยอดลูกค้า)
+  let peak = recorded[0] || null;
+  recorded.forEach(d => { if ((Number(d.customer)||0) > (Number(peak.customer)||0)) peak = d; });
+
+  return {
+    year: yearCE, label: `ปี พ.ศ. ${ceToBe(yearCE)}`,
+    dayCount: recorded.length, rowCount: all.length,
+    blankCount: all.length - recorded.length,
+    monthCount: monthsWith.length,
+    monthsWith,
+    weekdayCount: wd.length, weekendCount: we.length,
+    totals, avg, wdAvg, weAvg, peak
+  };
+}
+
+/** รายการปีที่มีข้อมูลจริง — ใช้เติมดรอปดาวน์เทียบรายปี */
+function yearsWithRecords(){
+  return availableYears().filter(y => {
+    const b = state.years[y];
+    return b && MONTH_KEY_ORDER.some(k => b[k] && b[k].daily && b[k].daily.some(hasAnyRecord));
+  });
+}
+
+function renderCompareYear(){
+  const wrap = document.getElementById('compareResult');
+  const selA = document.getElementById('compareA');
+  const selB = document.getElementById('compareB');
+  if (!wrap || !selA || !selB) return;
+  const sa = computeYearStats(Number(selA.value));
+  const sb = computeYearStats(Number(selB.value));
+  if (!sa || !sb){
+    wrap.innerHTML = `<p class="text-sm py-4" style="color:var(--ink-soft);">เลือกปีที่มีข้อมูลทั้งสองฝั่ง</p>`;
+    return;
+  }
+
+  // ★ เตือนเมื่อจำนวนเดือนที่มีข้อมูลไม่เท่ากัน — กับดักหลักของการเทียบรายปี
+  //   ปีปัจจุบันมักมีข้อมูลแค่ 8-9 เดือน ถ้าเทียบยอดรวมกับปีเต็มจะดูเหมือนตกฮวบ
+  let warn = '';
+  if (sa.monthCount !== sb.monthCount){
+    warn = `<div class="text-xs px-3 py-2 rounded-lg mb-3" style="background:color-mix(in srgb,var(--warn-ink) 13%,transparent);
+      border:1px solid color-mix(in srgb,var(--warn-ink) 32%,transparent);line-height:1.6;">
+      ⚠ จำนวนเดือนที่มีข้อมูล<b>ไม่เท่ากัน</b>
+      (${esc(sa.label)}: ${sa.monthCount} เดือน · ${esc(sb.label)}: ${sb.monthCount} เดือน)
+      — <b>ยอดรวม</b>จะเทียบกันไม่ได้ตรงๆ ให้ดูที่ <b>เฉลี่ย/วัน</b> แทน</div>`;
+  }
+
+  const pct = (a,b) => (b && b !== 0) ? (a - b) / b * 100 : null;
+  const chip = (d) => {
+    if (d === null || !isFinite(d)) return `<span style="color:var(--ink-soft);">—</span>`;
+    const up = d >= 0;
+    return `<span style="color:${up?'var(--up)':'var(--down)'};font-weight:700;white-space:nowrap;">${up?'▲':'▼'} ${fmt(Math.abs(d).toFixed(1))}%</span>`;
+  };
+
+  const rows = METRIC_KEYS.map(k => `<tr style="border-bottom:1px solid var(--line);">
+      <td style="padding:.55rem .5rem;font-weight:600;color:${metricInk(k)};white-space:nowrap;">${esc(METRIC_COLOR[k].label)}</td>
+      <td style="padding:.55rem .5rem;text-align:right;font-weight:700;">${fmt(sa.totals[k])}</td>
+      <td style="padding:.55rem .5rem;text-align:right;color:var(--ink-soft);">${fmt(sb.totals[k])}</td>
+      <td style="padding:.55rem .5rem;text-align:right;">${chip(pct(sa.totals[k], sb.totals[k]))}</td>
+      <td style="padding:.55rem .5rem;text-align:right;font-weight:700;">${fmt(Math.round(sa.avg[k]))}</td>
+      <td style="padding:.55rem .5rem;text-align:right;color:var(--ink-soft);">${fmt(Math.round(sb.avg[k]))}</td>
+      <td style="padding:.55rem .5rem;text-align:right;">${chip(pct(sa.avg[k], sb.avg[k]))}</td>
+      <td style="padding:.55rem .5rem;text-align:right;">${chip(pct(sa.wdAvg[k], sb.wdAvg[k]))}</td>
+      <td style="padding:.55rem .5rem;text-align:right;">${chip(pct(sa.weAvg[k], sb.weAvg[k]))}</td>
+    </tr>`).join('');
+
+  const head = ['ตัวชี้วัด', `รวม · ${ceToBe(sa.year)}`, `รวม · ${ceToBe(sb.year)}`, 'ต่าง',
+                `เฉลี่ย/วัน · ${ceToBe(sa.year)}`, `เฉลี่ย/วัน · ${ceToBe(sb.year)}`, 'ต่าง',
+                'ต่าง<br>วันธรรมดา', 'ต่าง<br>วันหยุด']
+    .map((h,i) => `<th style="text-align:${i?'right':'left'};padding:.5rem;color:var(--ink-soft);font-weight:600;font-size:.7rem;white-space:nowrap;">${h}</th>`).join('');
+
+  const pk = (st) => st.peak ? `${formatThaiDateShort(st.peak.date)} · ${fmt(st.peak.customer)} คน` : '—';
+
+  wrap.innerHTML = warn + `<div class="overflow-x-auto scrollbar-thin">
+    <table class="text-sm" style="width:100%;border-collapse:collapse;min-width:52rem;">
+      <thead><tr style="border-bottom:1px solid var(--line);">${head}</tr></thead>
+      <tbody>${rows}</tbody></table></div>
+    <div class="grid grid-cols-1 sm:grid-cols-2 gap-2.5 mt-3">
+      ${[sa,sb].map(st => `<div class="rounded-xl p-3" style="background:var(--bg-elev);border:1px solid var(--line);">
+        <div class="text-xs font-semibold mb-1">${esc(st.label)}</div>
+        <div class="text-xs" style="color:var(--ink-soft);line-height:1.7;">
+          มีข้อมูล ${st.monthCount} เดือน · ${fmt(st.dayCount)} วัน
+          (ธรรมดา ${st.weekdayCount} · หยุด ${st.weekendCount})${st.blankCount ? ` · ยังไม่กรอก ${st.blankCount} วัน` : ''}<br>
+          วันที่ลูกค้าสูงสุด: <b>${esc(pk(st))}</b>
+        </div></div>`).join('')}
+    </div>
+    <p class="text-xs mt-3" style="color:var(--ink-soft);line-height:1.6;">
+      เฉลี่ย/วันคิดจากเฉพาะวันที่มีบันทึกจริงทั้งปี (ไม่ใช่การเอาค่าเฉลี่ยรายเดือนมาเฉลี่ยซ้ำ ซึ่งจะให้น้ำหนักเดือนที่ข้อมูลน้อยเกินจริง)
+    </p>`;
+}
+
+// ═══════════════════════════════════════════════════════════════
+// v112 — เปรียบเทียบ "รายวัน" แบบอิสระ
+// ───────────────────────────────────────────────────────────────
+// ★ เลือกวันไหนก็ได้ 2 วันมาเทียบกัน ข้ามเดือน/ข้ามปีได้
+// ★ ใช้ <input type="date"> แทนดรอปดาวน์ เพราะข้อมูลมีกว่า 4,900 วัน
+//   ดรอปดาวน์ขนาดนั้นเลื่อนหาไม่ไหว และ input วันที่เปิดปฏิทินของเครื่องให้เลือกตรงๆ ได้
+// ★ ปุ่มลัด "−1 สัปดาห์" / "−1 ปี" เพราะการเทียบวันที่มีประโยชน์ที่สุดคือเทียบกับ
+//   "วันเดียวกันของสัปดาห์/ปีก่อน" (วันในสัปดาห์ตรงกัน ยอดจึงเทียบกันได้จริง)
+//   การเทียบวันเสาร์กับวันอังคารไม่ได้บอกอะไร เพราะต่างกันเป็นธรรมชาติอยู่แล้ว
+// ═══════════════════════════════════════════════════════════════
+
+/** หาแถวข้อมูลของวันที่ใดก็ได้ ข้ามปี — คืน null ถ้าไม่มี */
+function findDayRecord(iso){
+  if (!isValidISO(iso)) return null;
+  const y = Number(String(iso).slice(0,4));
+  const bundle = state.years[y];
+  if (!bundle) return null;
+  for (const k of MONTH_KEY_ORDER){
+    const m = bundle[k];
+    if (!m || !Array.isArray(m.daily)) continue;
+    const row = m.daily.find(d => d.date === iso);
+    if (row) return { row, month: m };
+  }
+  return null;
+}
+
+/** ขอบเขตวันที่ที่มีข้อมูล — ใช้ตั้ง min/max ของช่องเลือกวัน */
+function dataDateRange(){
+  let min = null, max = null;
+  availableYears().forEach(y => {
+    const b = state.years[y] || {};
+    MONTH_KEY_ORDER.forEach(k => {
+      const m = b[k];
+      if (!m || !Array.isArray(m.daily)) return;
+      m.daily.forEach(d => {
+        if (!isValidISO(d.date)) return;
+        if (!min || d.date < min) min = d.date;
+        if (!max || d.date > max) max = d.date;
+      });
+    });
+  });
+  return { min, max };
+}
+
+/** วันล่าสุดที่มีบันทึกจริง — ใช้เป็นค่าเริ่มต้นฝั่งซ้าย */
+function latestRecordedDate(){
+  let best = null;
+  availableYears().forEach(y => {
+    const b = state.years[y] || {};
+    MONTH_KEY_ORDER.forEach(k => {
+      const m = b[k];
+      if (!m || !Array.isArray(m.daily)) return;
+      m.daily.forEach(d => {
+        if (!isValidISO(d.date) || !hasAnyRecord(d)) return;
+        if (!best || d.date > best) best = d.date;
+      });
+    });
+  });
+  return best;
+}
+
+/** เลื่อนวันที่ไปกี่วัน/กี่ปี — คืน ISO */
+function shiftISO(iso, { days = 0, years = 0 } = {}){
+  if (!isValidISO(iso)) return iso;
+  const d = new Date(iso + 'T00:00:00');
+  if (years) d.setFullYear(d.getFullYear() + years);
+  if (days) d.setDate(d.getDate() + days);
+  return toLocalISO(d);
+}
+
+function renderCompareDay(){
+  const wrap = document.getElementById('compareResult');
+  const inA = document.getElementById('compareDateA');
+  const inB = document.getElementById('compareDateB');
+  const hint = document.getElementById('compareDateHint');
+  if (!wrap || !inA || !inB) return;
+
+  const isoA = inA.value, isoB = inB.value;
+  const missing = [];
+  if (!isValidISO(isoA)) missing.push('วันที่ 1');
+  if (!isValidISO(isoB)) missing.push('วันที่ 2');
+  if (missing.length){
+    wrap.innerHTML = `<p class="text-sm py-4" style="color:var(--ink-soft);">กรุณาเลือก${missing.join(' และ ')}</p>`;
+    return;
+  }
+
+  const ra = findDayRecord(isoA), rb = findDayRecord(isoB);
+  const notFound = [];
+  if (!ra) notFound.push(formatThaiDateShort(isoA));
+  if (!rb) notFound.push(formatThaiDateShort(isoB));
+  if (notFound.length){
+    wrap.innerHTML = `<p class="text-sm py-4" style="color:var(--warn-ink);">
+      ไม่พบข้อมูลของ ${esc(notFound.join(' และ '))} ในระบบ — อาจยังไม่ได้กรอก หรืออยู่นอกช่วงปีที่โหลดไว้</p>`;
+    return;
+  }
+
+  const A = ra.row, B = rb.row;
+  // ★ เตือนเมื่อเทียบคนละวันในสัปดาห์ — ยอดห้างต่างกันตามวันในสัปดาห์อย่างรุนแรง
+  //   เทียบเสาร์กับอังคารแล้วบอกว่า "ยอดตก 40%" เป็นข้อสรุปที่ผิด
+  const dowA = new Date(isoA+'T00:00:00').getDay(), dowB = new Date(isoB+'T00:00:00').getDay();
+  let warn = '';
+  if (dowA !== dowB){
+    warn = `<div class="text-xs px-3 py-2 rounded-lg mb-3" style="background:color-mix(in srgb,var(--warn-ink) 13%,transparent);
+      border:1px solid color-mix(in srgb,var(--warn-ink) 32%,transparent);line-height:1.6;">
+      ⚠ กำลังเทียบ<b>วัน${esc(thaiWeekday(isoA))}</b> กับ <b>วัน${esc(thaiWeekday(isoB))}</b>
+      — ยอดของแต่ละวันในสัปดาห์ต่างกันเป็นปกติอยู่แล้ว ผลต่างที่เห็นอาจไม่ได้สะท้อนอะไร
+      แนะนำให้กดปุ่ม <b>− 1 สัปดาห์</b> หรือ <b>− 1 ปี</b> เพื่อเทียบวันเดียวกันของสัปดาห์/ปีก่อน</div>`;
+  }
+
+  const pct = (a,b) => (b && b !== 0) ? (a - b) / b * 100 : null;
+  const chip = (d) => {
+    if (d === null || !isFinite(d)) return `<span style="color:var(--ink-soft);">—</span>`;
+    const up = d >= 0;
+    return `<span style="color:${up?'var(--up)':'var(--down)'};font-weight:700;white-space:nowrap;">${up?'▲':'▼'} ${fmt(Math.abs(d).toFixed(1))}%</span>`;
+  };
+
+  const rows = METRIC_KEYS.map(k => {
+    const va = Number(A[k])||0, vb = Number(B[k])||0;
+    return `<tr style="border-bottom:1px solid var(--line);">
+      <td style="padding:.55rem .5rem;font-weight:600;color:${metricInk(k)};white-space:nowrap;">${esc(METRIC_COLOR[k].label)}</td>
+      <td style="padding:.55rem .5rem;text-align:right;font-weight:700;">${fmt(va)}</td>
+      <td style="padding:.55rem .5rem;text-align:right;color:var(--ink-soft);">${fmt(vb)}</td>
+      <td style="padding:.55rem .5rem;text-align:right;font-weight:600;color:${va>=vb?'var(--up)':'var(--down)'};">${va>=vb?'+':''}${fmt(va-vb)}</td>
+      <td style="padding:.55rem .5rem;text-align:right;">${chip(pct(va,vb))}</td>
+    </tr>`;
+  }).join('');
+
+  const head = ['ตัวชี้วัด', formatThaiDateShort(isoA), formatThaiDateShort(isoB), 'ต่าง (หน่วย)', 'ต่าง (%)']
+    .map((h,i)=>`<th style="text-align:${i?'right':'left'};padding:.5rem;color:var(--ink-soft);font-weight:600;font-size:.7rem;white-space:nowrap;">${esc(h)}</th>`).join('');
+
+  const infoCard = (iso, rec, m) => {
+    const hol = isThaiHoliday(iso);
+    const wk = (function(){
+      try {
+        const key = MONTH_KEY_ORDER[m.monthNum-1];
+        const sv = state.data; state.data = state.years[m.year];
+        const w = computeWeeklyStats(key).find(x => x.days.some(d => d.date === iso));
+        state.data = sv;
+        return w ? `สัปดาห์ที่ ${w.weekNo}` : '—';
+      } catch(e){ return '—'; }
+    })();
+    return `<div class="rounded-xl p-3" style="background:var(--bg-elev);border:1px solid var(--line);">
+      <div class="text-xs font-semibold mb-1">${esc(formatThaiDate(iso))}</div>
+      <div class="text-xs" style="color:var(--ink-soft);line-height:1.7;">
+        วัน${esc(thaiWeekday(iso))} · ${rec.section==='weekend'?'วันหยุด':'วันธรรมดา'} · ${esc(wk)}<br>
+        ${hol ? `วันหยุดนักขัตฤกษ์: <b>${esc(hol)}</b><br>` : ''}
+        ${rec.note ? `งานกิจกรรม: <b>${esc(rec.note)}</b>` : 'ไม่มีบันทึกงานกิจกรรม'}
+      </div></div>`;
+  };
+
+  wrap.innerHTML = warn + `<div class="overflow-x-auto scrollbar-thin">
+    <table class="text-sm" style="width:100%;border-collapse:collapse;min-width:34rem;">
+      <thead><tr style="border-bottom:1px solid var(--line);">${head}</tr></thead>
+      <tbody>${rows}</tbody></table></div>
+    <div class="grid grid-cols-1 sm:grid-cols-2 gap-2.5 mt-3">
+      ${infoCard(isoA, A, ra.month)}${infoCard(isoB, B, rb.month)}
+    </div>`;
+
+  if (hint){
+    const diff = Math.round((new Date(isoA+'T00:00:00') - new Date(isoB+'T00:00:00')) / 86400000);
+    hint.textContent = `ห่างกัน ${fmt(Math.abs(diff))} วัน`;
+  }
+}
+
+/** v111/v112: วาดผลตามโหมดที่เลือก — รายวัน / รายเดือน / รายปี */
+function renderCompareByMode(){
+  if (state.compareMode === 'day') renderCompareDay();
+  else if (state.compareMode === 'year') renderCompareYear();
+  else renderCompare();
+}
+
 function initCompare(){
   const selA = document.getElementById('compareA');
   const selB = document.getElementById('compareB');
   if (!selA || !selB) return;
-  const opts = allMonthOptions();
-  if (!opts.length) return;
-  const build = (sel, pickIdx) => {
-    sel.innerHTML = '';
-    opts.forEach((o, i) => {
-      const el = document.createElement('option');
-      el.value = `${o.year}|${o.key}`;
-      el.textContent = o.label;
-      if (i === pickIdx) el.selected = true;
-      sel.appendChild(el);
-    });
-  };
-  const last = opts.length - 1;
-  // ค่าเริ่มต้นที่มีประโยชน์ที่สุด: เดือนล่าสุด เทียบกับเดือนเดียวกันของปีก่อน (ถ้ามี)
-  const cur = opts[last];
-  let cmpIdx = Math.max(0, last - 1);
-  const sameMonthLastYear = opts.findIndex(o => o.key === cur.key && o.year === cur.year - 1);
-  if (sameMonthLastYear >= 0) cmpIdx = sameMonthLastYear;
-  build(selA, last);
-  build(selB, cmpIdx);
+
+  // ── ปุ่มสลับโหมด ──
+  document.querySelectorAll('.compareModeBtn').forEach(b => {
+    const on = (b.dataset.mode === state.compareMode);
+    b.style.background = on ? 'linear-gradient(135deg,var(--gate-a1),var(--gate-a2))' : 'transparent';
+    b.style.color = on ? '#fff' : 'var(--ink-soft)';
+    b.setAttribute('aria-pressed', String(on));
+    if (!b.dataset.bound){
+      b.dataset.bound = '1';
+      b.addEventListener('click', () => {
+        if (state.compareMode === b.dataset.mode) return;
+        state.compareMode = b.dataset.mode;
+        // เปลี่ยนโหมด = ตัวเลือกคนละชุด ต้องล้าง flag ให้สร้างใหม่ทั้งหมด
+        delete selA.dataset.filled; delete selB.dataset.filled;
+        initCompare();
+      });
+    }
+  });
+
+  const hint = document.getElementById('compareHint');
+  const selRow  = document.getElementById('compareSelectRow');
+  const dateRow = document.getElementById('compareDateRow');
+
+  // ★ v112: สลับแถวควบคุมตามโหมด — รายวันใช้ช่องวันที่ ส่วนรายเดือน/รายปีใช้ดรอปดาวน์
+  if (selRow)  selRow.style.display  = (state.compareMode === 'day') ? 'none' : 'flex';
+  if (dateRow) dateRow.style.display = (state.compareMode === 'day') ? 'flex' : 'none';
+
+  if (state.compareMode === 'day'){
+    const inA = document.getElementById('compareDateA');
+    const inB = document.getElementById('compareDateB');
+    if (!inA || !inB) return;
+    const range = dataDateRange();
+    // จำกัดช่วงที่เลือกได้ให้อยู่ในช่วงที่มีข้อมูลจริง — กันผู้ใช้เลือกวันที่ไม่มีทางมีข้อมูล
+    if (range.min && range.max){
+      [inA, inB].forEach(el => { el.min = range.min; el.max = range.max; });
+    }
+    if (!inA.value || !inB.value){
+      // ★ ค่าเริ่มต้นที่มีประโยชน์ที่สุด: วันล่าสุดที่มีบันทึก เทียบกับวันเดียวกันของสัปดาห์ก่อน
+      //   (วันในสัปดาห์ตรงกัน จึงเทียบกันได้จริง)
+      const last = latestRecordedDate();
+      if (last){
+        inA.value = last;
+        const prev = shiftISO(last, { days: -7 });
+        inB.value = (range.min && prev < range.min) ? range.min : prev;
+      }
+    }
+    if (!inA.dataset.bound){
+      inA.dataset.bound = '1';
+      inA.addEventListener('change', renderCompareDay);
+      inB.addEventListener('change', renderCompareDay);
+      const sw = document.getElementById('compareDateSwap');
+      if (sw) sw.addEventListener('click', () => {
+        const t = inA.value; inA.value = inB.value; inB.value = t; renderCompareDay();
+      });
+      const pw = document.getElementById('compareDatePrevWeek');
+      if (pw) pw.addEventListener('click', () => {
+        if (!isValidISO(inA.value)) return;
+        inB.value = shiftISO(inA.value, { days: -7 }); renderCompareDay();
+      });
+      const py = document.getElementById('compareDatePrevYear');
+      if (py) py.addEventListener('click', () => {
+        if (!isValidISO(inA.value)) return;
+        inB.value = shiftISO(inA.value, { years: -1 }); renderCompareDay();
+      });
+    }
+    renderCompareDay();
+    return;
+  }
+
+  if (state.compareMode === 'year'){
+    // ── โหมดเทียบรายปี ──
+    const ys = yearsWithRecords();
+    if (!ys.length){
+      document.getElementById('compareResult').innerHTML =
+        `<p class="text-sm py-4" style="color:var(--ink-soft);">ยังไม่มีปีที่มีข้อมูลให้เปรียบเทียบ</p>`;
+      return;
+    }
+    const build = (sel, pick) => {
+      sel.innerHTML = '';
+      ys.forEach(y => {
+        const el = document.createElement('option');
+        el.value = String(y);
+        el.textContent = `ปี พ.ศ. ${ceToBe(y)}`;
+        if (y === pick) el.selected = true;
+        sel.appendChild(el);
+      });
+    };
+    // ★ ค่าเริ่มต้นที่มีประโยชน์ที่สุด: ปีล่าสุด เทียบกับปีก่อนหน้า
+    const lastY = ys[ys.length-1];
+    const prevY = ys.length > 1 ? ys[ys.length-2] : lastY;
+    build(selA, lastY); build(selB, prevY);
+    if (hint) hint.textContent = `มีข้อมูล ${ys.length} ปี · เลือกเทียบปีใดก็ได้`;
+  } else {
+    // ── โหมดเทียบรายเดือน (เดิม) ──
+    const opts = allMonthOptions();
+    if (!opts.length) return;
+    const build = (sel, pickIdx) => {
+      sel.innerHTML = '';
+      opts.forEach((o, i) => {
+        const el = document.createElement('option');
+        el.value = `${o.year}|${o.key}`;
+        el.textContent = o.label;
+        if (i === pickIdx) el.selected = true;
+        sel.appendChild(el);
+      });
+    };
+    const last = opts.length - 1;
+    // ค่าเริ่มต้นที่มีประโยชน์ที่สุด: เดือนล่าสุด เทียบกับเดือนเดียวกันของปีก่อน (ถ้ามี)
+    const cur = opts[last];
+    let cmpIdx = Math.max(0, last - 1);
+    const sameMonthLastYear = opts.findIndex(o => o.key === cur.key && o.year === cur.year - 1);
+    if (sameMonthLastYear >= 0) cmpIdx = sameMonthLastYear;
+    build(selA, last);
+    build(selB, cmpIdx);
+    if (hint) hint.textContent = `เทียบข้ามปีได้ · ${opts.length} เดือน`;
+  }
+
   if (!selA.dataset.bound){
     selA.dataset.bound = '1';
-    selA.addEventListener('change', renderCompare);
-    selB.addEventListener('change', renderCompare);
+    selA.addEventListener('change', renderCompareByMode);
+    selB.addEventListener('change', renderCompareByMode);
     const swap = document.getElementById('compareSwap');
     if (swap) swap.addEventListener('click', () => {
-      const t = selA.value; selA.value = selB.value; selB.value = t; renderCompare();
+      const t = selA.value; selA.value = selB.value; selB.value = t; renderCompareByMode();
     });
   }
-  renderCompare();
+  renderCompareByMode();
 }
 
 // ═══════════════════════════════════════════════════════════════
@@ -7189,15 +7783,69 @@ async function fetchAllYearsViaGviz(yearsWanted){
   }
   if (!Object.keys(years).length) throw new Error('อ่านแท็บรายปีผ่าน gviz ไม่สำเร็จเลยสักปี');
   linkPrevYearTotals(years);
+  rememberDiscoveredYears(Object.keys(years).map(Number));   // v111: จำไว้ดึงซ้ำรอบหน้า
   return { years, issues, failed };
 }
 
-// ── รายชื่อปีที่ควรลองดึง = ปีที่มีข้อมูลฝังไว้ + ปีปัจจุบัน + ปีถัดไป (เผื่อเพิ่งเพิ่มแท็บใหม่) ──
+// ═══════════════════════════════════════════════════════════════
+// v111 — รายชื่อปีที่ควรลองดึงผ่าน gviz (ช่องทางสำรอง)
+// ───────────────────────────────────────────────────────────────
+// ★ ปัญหาเดิม: รายการ = ปีที่ฝังไว้ในไฟล์ + ปีปัจจุบัน + ปีถัดไป เท่านั้น
+//   ถ้าเพิ่มแท็บ "ปีย้อนหลัง" ที่ไม่เคยฝังไว้ (เช่น พ.ศ. 2554) ระบบจะไม่มีวันไปดึง
+//   และผู้ใช้จะไม่เห็นข้อมูลปีนั้นเลย โดยไม่มีข้อความบอกว่าทำไม
+//   ★ ช่องทางหลัก (Apps Script) ไม่มีปัญหานี้ เพราะ Code.gs สแกนแท็บทั้งไฟล์เอง
+//     แต่ช่องทางสำรองต้องเดารายชื่อปีเอง เพราะ gviz ดึงได้ทีละแท็บที่ระบุชื่อ
+// ★ วิธีแก้ 3 ชั้น:
+//   1. ขยายขอบเขตออกจากช่วงที่รู้จัก ±2 ปี — ครอบคลุมการเพิ่มแท็บทีละปีตามธรรมชาติ
+//   2. จำปีที่เคยดึงสำเร็จลง localStorage — ปีที่เจอครั้งหนึ่งแล้วจะถูกดึงทุกครั้งต่อไป
+//      แม้จะอยู่นอกช่วง ±2 (เช่นเพิ่มย้อนหลังทีเดียว 5 ปี ก็จะไล่เจอทีละรอบจนครบ)
+//   3. รวมปีที่มีอยู่ใน state แล้ว — กันข้อมูลที่โหลดมาแล้วหายไปตอนซิงค์รอบถัดไป
+// ★ ปีที่ดึงไม่ได้ไม่ใช่ error — ระบบเก็บไว้ใน failed แล้วรายงานรวมครั้งเดียว
+//   จึงขยายขอบเขตได้โดยไม่สร้างเสียงรบกวน (ต้นทุนคือ fetch ที่ล้มเหลวไม่กี่ครั้ง)
+// ═══════════════════════════════════════════════════════════════
+const DISCOVERED_YEARS_KEY = 'sbk_discovered_years_v1';
+
+function loadDiscoveredYears(){
+  try {
+    const raw = localStorage.getItem(DISCOVERED_YEARS_KEY);
+    const arr = raw ? JSON.parse(raw) : [];
+    return Array.isArray(arr) ? arr.filter(y => Number.isFinite(y) && y >= 1990 && y <= 2200) : [];
+  } catch(e){ return []; }
+}
+
+/** จำปีที่ดึงข้อมูลได้จริง เพื่อให้รอบถัดไปดึงซ้ำแน่นอน */
+function rememberDiscoveredYears(years){
+  try {
+    const set = new Set(loadDiscoveredYears());
+    (years || []).forEach(y => { if (Number.isFinite(Number(y))) set.add(Number(y)); });
+    localStorage.setItem(DISCOVERED_YEARS_KEY, JSON.stringify(Array.from(set).sort((a,b)=>a-b)));
+  } catch(e){ /* localStorage เต็ม/ปิดอยู่ — ไม่ใช่เรื่องคอขาดบาดตาย ข้ามไป */ }
+}
+
 function yearsToSync(){
   const set = new Set(Object.keys(EMBEDDED_YEARS).map(Number));
+  // ปีที่โหลดมาแล้วในรอบนี้ + ปีที่เคยเจอในอดีต
+  try { Object.keys(state.years || {}).forEach(y => set.add(Number(y))); } catch(e){}
+  loadDiscoveredYears().forEach(y => set.add(y));
+
   const nowY = new Date().getFullYear();
   set.add(nowY); set.add(nowY + 1);
-  return Array.from(set).sort((a,b)=>a-b);
+
+  // ★ เติมให้เป็นช่วงต่อเนื่อง lo-2 … hi+2
+  //   ★ ต้องเติม "ช่องว่างตรงกลาง" ด้วย ไม่ใช่แค่ขยายปลายสองข้าง
+  //     ถ้าขยายแค่ปลาย แล้วผู้ใช้เพิ่มแท็บปีที่อยู่ตรงกลางช่องว่าง (เช่นมี 2554 กับ 2556
+  //     แล้วเพิ่ม 2555 ทีหลัง) ปีนั้นจะไม่มีวันถูกดึงเลย
+  //   ช่วงทั้งหมดราว 20 ปี = 20 คำขอ แบ่งเป็นชุดละ 4 → 5 รอบ ซึ่งรับได้
+  //   และปีที่ไม่มีแท็บจะตกไปอยู่ใน failed เงียบๆ อยู่แล้ว
+  const known = Array.from(set).filter(Number.isFinite);
+  if (known.length){
+    const lo = Math.min(...known), hi = Math.max(...known);
+    for (let y = lo - 2; y <= hi + 2; y++) set.add(y);
+  }
+  // เพดานความปลอดภัย — กันกรณีข้อมูลเพี้ยนทำให้ไล่ดึงเป็นร้อยปี
+  return Array.from(set)
+    .filter(y => Number.isFinite(y) && y >= 1990 && y <= nowY + 3)
+    .sort((a,b)=>a-b);
 }
 
 // ── รับข้อมูลชุดใหม่เข้าคลัง พร้อมการ์ดความถูกต้อง ──
@@ -7421,6 +8069,7 @@ async function syncAllFromSheets(silent){
       const raw = await withRetry(() => fetchFromAppsScript(), 'Apps Script');
       const years = normalizeAppsScriptYears(raw);
       changedYears = acceptYears(years);
+      rememberDiscoveredYears(Object.keys(years).map(Number));   // v111
       lastDataIssues = Array.isArray(raw.dataIssues) ? raw.dataIssues : [];
       source = 'appsscript';
       appsScriptAvailable = true; // เปิดการ poll เวอร์ชันข้อมูลทุก 60 วิ (ทำได้เฉพาะช่องทางนี้)
@@ -9664,7 +10313,14 @@ function loadSavedPreferences(){
         try { localStorage.setItem('sbk_accent_theme', DEFAULT_ACCENT); } catch(e){}
       }
     }
-    if (savedAccent && ACCENT_THEMES[savedAccent]) state.accentTheme = savedAccent;
+    // ★ v113: เครื่องที่เคยเลือกธีมซึ่งตอนนี้ถูกปิดไว้ จะถอยไปธีมเริ่มต้นเอง
+    //   และเขียนค่าใหม่ทับ เพื่อไม่ให้ค้างเป็นคีย์ที่ใช้ไม่ได้ตลอดไป
+    if (savedAccent && isAccentThemeEnabled(savedAccent)) {
+      state.accentTheme = savedAccent;
+    } else if (savedAccent) {
+      state.accentTheme = DEFAULT_ACCENT;
+      try { localStorage.setItem('sbk_accent_theme', DEFAULT_ACCENT); } catch(e){}
+    }
     const savedLabels = localStorage.getItem('sbk_chart_labels');
     if (savedLabels) {
       const parsed = JSON.parse(savedLabels);
