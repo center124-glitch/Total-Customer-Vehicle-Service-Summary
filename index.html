@@ -1,6 +1,52 @@
 <!DOCTYPE html>
 <!--
   ระบบวิเคราะห์ยอดลูกค้า-ยอดรถยนต์ · เวอร์ชัน v113
+  v117 — หน้า Welcome ใหม่ "Neon Prism" (สีสันสดใส · ไม่มีกรอบ) · แดชบอร์ดธีม Spectrum ทั้งสองโหมด
+
+  ■ 1) หน้า Welcome: เอากรอบออก เหลือแค่โลโก้ + ตัวหนังสือ (ตามภาพที่วงไว้)
+     ถอดการ์ดกระจก · เส้นแสงวิ่งรอบขอบ · เรดาร์ · วงแหวนบอกระดับ · กรอบแคปซูลคำชวนแตะ ออกทั้งหมด
+     ★ .intro-card ยังคงอยู่เป็นตัวจัดวางเท่านั้น (ไม่มีพื้น ขอบ เงา เบลอ) เพราะโค้ดหลายจุดอ้างถึง
+     ★ ปัญหาที่ตามมาทันที: การ์ดคือสิ่งที่การันตีว่าตัวอักษรขาวอ่านออก พอเอาออก ข้อความลอยบนพื้นสีสดตรงๆ
+       จึงแทนด้วย "สปอตไลต์มืด" ไล่เงาจางล้วนหลังกลางจอ (ไม่มีขอบ มองไม่เห็นเป็นรูปทรง จึงไม่ใช่กรอบ)
+     ★ วัดคอนทราสต์จากพิกเซลจริง "กรณีเลวร้ายที่สุด": ก้อนสีเคลื่อนตลอดเวลา จึงหยุดภาพ 9 ตำแหน่ง
+       ตลอดเส้นทางของก้อนสี × 3 ขนาดจอ (1280 / 1920 / มือถือ 390) → ต่ำสุด 5.24:1 ผ่าน AA ทุกบรรทัด
+
+  ■ 2) เอฟเฟกต์ชุดใหม่ทั้งหมด — สีสด: ชมพูนีออน · ส้มไฟ · ไซแอน · ม่วงไฟฟ้า · เหลืองทอง
+     • ผืนสีสด 5 ก้อนไหลผสมกัน (จังหวะ/ทิศต่างกัน ส่วนผสมสีไม่ซ้ำเป็นวงรอบสั้นๆ)
+     • แสงปริซึมสีรุ้งหมุนรอบกลางจอ
+     • ลำแสงความเร็ว 32 เส้นพุ่งออกจากกลางจอ (แรงบันดาลใจจากภาพรถนีออนที่เคยส่งมา)
+       ★ ใช้คีย์เฟรมชุดเดียว ส่งมุมผ่านตัวแปร --r — ไม่ต้องเขียนคีย์เฟรม 32 ชุด/ไม่คำนวณมุมด้วย JS
+       ★ "จุดระเบิด" 1.6 วินาทีแรกตอนเปิดโปรแกรมเท่านั้น โหมดพักหน้าจอไม่ระเบิด
+     • ละอองโบเก้สีลอยขึ้น 12 เม็ด · แสงเรืองสีรุ้งหลังโลโก้ (เบลอจนไม่มีขอบ — เป็นแสง ไม่ใช่วงแหวน)
+     • แถบความคืบหน้าสีรุ้งไหล (ยังเป็นตัวนับเวลาจริงตามเดิม) · ข้อความขาวล้วน + เงาเรืองสี
+     ★ [แก้ระหว่างทาง] ลำแสงเดิมตั้งรัศมีเริ่มเป็น vmin อย่างเดียว — วัดจริงบนมือถือ 390px
+       เริ่มที่ 116px ขณะที่ข้อความไกลถึง 198px → ลำแสงวิ่งตัดหลังตัวหนังสือ
+       ต้องมีขั้นต่ำเป็น px เพราะกลุ่มข้อความมีขนาดคงที่: max(27vmin, 240px)
+       ตรวจแล้ว 5 ขนาดจอ (360 ถึง 1920) พ้นข้อความทุกขนาด ระยะเผื่อต่ำสุด 41px
+
+  ■ 3) แดชบอร์ด: ธีมใหม่ "Spectrum" เป็นค่าเริ่มต้น — สดใสทั้งโหมดสว่างและมืด
+     การ์ดหลัก ชมพูราสเบอร์รี → ม่วงไฟฟ้า → ฟ้าอาซัวร์ (ทิศเดียวกับโลโก้) · ตัวชี้วัด 6 สีกระจายรอบวงล้อสี
+     ★ เลือกเฉดจากการวัด รวม opacity .90 ของป้ายเล็กบนการ์ดหลักด้วย:
+       รอบแรก #D6246F / #0A72C9 วัดจากหน้าจอจริงได้ 4.15 / 4.30 (ไม่ผ่าน) → ปรับเป็น #C81E6A / #0968BA
+     ★ ย้ายเครื่องที่ค้าง Harbor (ค่าเริ่มต้นเดิม) มา Spectrum ครั้งเดียว — ไม่แตะเครื่องที่เลือกธีมอื่นเอง
+       และถ้าผู้ใช้กดกลับไป Harbor ภายหลังจะจำไว้ ไม่ย้ายซ้ำ (ทดสอบครบ 7 กรณี)
+     • บลูมพื้นหลังเดิม "ฝังสี Harbor ตายตัว" ไม่ว่าเลือกธีมไหนพื้นก็ฟ้า-ทองเสมอ → ตอนนี้ดึงจากสีธีม
+     • การ์ด KPI สีพื้นเข้มขึ้น (สว่าง 34/20% · มืด 32/16% เดิม 24/14% ทั้งสองโหมด) · ก้อนแสงเคลื่อนไหวเด่นขึ้น
+     • สวอตช์ Spectrum แสดงสีจริงของธีม (สูตรกลางให้ ชมพู→เขียว→อำพัน ซึ่งดูขุ่น)
+
+  ■ 4) บั๊กที่พบและแก้ (วัดจริงทุกข้อ)
+     • [สำคัญ] โหมด "อัตโนมัติ" + เครื่องตั้งโหมดมืด: ตัวเลข/ชื่อตัวชี้วัดในตารางได้สีของโหมดสว่าง
+       (เข้มบนพื้นเข้ม) วัดได้ 1.41:1 แทบมองไม่เห็น — ควรได้ 8.91:1
+       สาเหตุ: metricInk() เช็ก state.theme === 'dark' ซึ่งเป็นค่าที่ผู้ใช้ "ตั้งใจ" ไม่ใช่ผลจริงบนจอ
+       ตั้งแต่ v105 ค่าเริ่มต้นคือ 'auto' → กระทบทุกเครื่องที่ไม่เคยเลือกโหมดและเปิดตอนกลางคืน
+       แก้เป็นอ่านคลาส .dark บน <html> · ตรวจแล้วว่าเครื่องสลับโหมดระหว่างเปิด ตารางวาดใหม่ด้วยสีถูก
+     • ป้ายตัวเลขบนกราฟเส้นในโหมดมืด: ขอบขาวตายตัว + สีเส้นดิบ = ตัวหนังสือเลอะ อ่านยาก
+       → ขอบใช้สีพื้นการ์ดของโหมดนั้น · ตัวเลขผ่าน ensureContrast()
+     • ป้าย/บรรทัดล่างขนาด 11–12px บนการ์ด KPI โหมดสว่างไม่ผ่าน AA — เป็นปัญหาเดิม
+       (v116 Harbor ได้ ~3.8:1) → เข้มขึ้นเฉพาะใน .kpi-card · ผลวัด 60 ข้อความทั้งสองโหมด ต่ำสุด 5.02:1
+       ★ วิธีวัด: สีที่คำนวณจริงของข้อความ เทียบพื้นจริงที่ถ่ายตอนซ่อนตัวอักษร
+         (วิธีนับพิกเซลบนตัวอักษร 11px ให้ค่าต่ำเกินจริงจากการลบรอยหยัก — ยืนยันด้วยการวัดซ้ำ ไม่ได้สันนิษฐาน)
+
   v116 — หน้า Welcome ออกแบบเอฟเฟกต์ใหม่ทั้งหมด: แนวคิด "Data Horizon"
 
   ■ ทำไมรื้อทั้งชุด ไม่ใช่ปรับของเดิม
@@ -2464,6 +2510,42 @@ html.dark body::before{
     radial-gradient(52% 44% at 98% 56%, rgba(23,163,152,.20), transparent 60%),
     radial-gradient(58% 44% at 2% 112%, rgba(65,158,189,.18), transparent 62%),
     radial-gradient(44% 36% at 52% 46%, rgba(247,173,26,.07), transparent 68%);}
+/* ══════════════════════════════════════════════════════════════════
+   v117 — แดชบอร์ดสีสันสดใสขึ้น ทั้งโหมดสว่างและโหมดมืด
+   ──────────────────────────────────────────────────────────────────
+   ★ บลูมพื้นหลังเดิม "ฝังสีของ Harbor ไว้ตายตัว" (ฟ้า #419EBD / ทอง #F7AD1A)
+     ผลคือไม่ว่าผู้ใช้จะเลือกธีมไหน พื้นหลังก็ยังเป็นฟ้า-ทองเสมอ ขัดกับสีของการ์ด
+     ตอนนี้ดึงจากตัวแปรธีมแทน พื้นหลังจึงเปลี่ยนสีไปพร้อมธีมที่เลือก
+   ★ ประกาศไว้ใน @supports — เบราว์เซอร์ที่ไม่รู้จัก color-mix() จะข้ามทั้งบล็อก
+     และใช้บลูมสีเดิมด้านบนต่อไป (ไม่ใช่พื้นหลังหายไปทั้งหมด)
+   ══════════════════════════════════════════════════════════════════ */
+@supports (background: color-mix(in srgb, red 50%, transparent)){
+  body::before{
+    background:
+      radial-gradient(58% 46% at 0% -12%,  color-mix(in srgb, var(--gate-a1) 34%, transparent), transparent 62%),
+      radial-gradient(52% 42% at 100% -8%, color-mix(in srgb, var(--gate-b1) 30%, transparent), transparent 58%),
+      radial-gradient(54% 46% at 98% 60%,  color-mix(in srgb, var(--gate-a2) 22%, transparent), transparent 60%),
+      radial-gradient(60% 44% at 2% 112%,  color-mix(in srgb, var(--gate-c1) 26%, transparent), transparent 62%),
+      radial-gradient(46% 38% at 50% 46%,  color-mix(in srgb, var(--gate-d1) 10%, transparent), transparent 68%);}
+  html.dark body::before{
+    background:
+      radial-gradient(56% 44% at 0% -12%,  color-mix(in srgb, var(--gate-a1) 40%, transparent), transparent 62%),
+      radial-gradient(50% 42% at 100% -8%, color-mix(in srgb, var(--gate-a2) 36%, transparent), transparent 58%),
+      radial-gradient(54% 46% at 98% 58%,  color-mix(in srgb, var(--gate-d1) 30%, transparent), transparent 60%),
+      radial-gradient(60% 46% at 2% 112%,  color-mix(in srgb, var(--gate-c1) 24%, transparent), transparent 62%),
+      radial-gradient(46% 38% at 52% 46%,  color-mix(in srgb, var(--gate-b1) 9%, transparent), transparent 68%);}
+}
+/* การ์ด KPI: ความเข้มของสีพื้นแยกตามโหมด (เดิมตายตัว 24% / 14% ทั้งสองโหมด ดูซีดเกินไป)
+   ★ ค่าเหล่านี้ผ่านการวัดคอนทราสต์ตัวอักษรบนการ์ดจริงแล้วทั้งสองโหมด (ดูหัวไฟล์) */
+:root{--kpi-mix-a:34%; --kpi-mix-b:20%;}
+html.dark{--kpi-mix-a:32%; --kpi-mix-b:16%;}
+/* ★ v117: ตัวอักษรรองบนการ์ด KPI โหมดสว่าง — เข้มขึ้นเฉพาะในการ์ด
+   วัดจากหน้าจอจริงพบว่าป้าย/บรรทัดล่างขนาด 11–12px (ใช้ --ink-soft #4A6B7E) ไม่ผ่าน AA:
+   ★ เป็นปัญหาเดิมที่มีมาก่อน — v116 ธีม Harbor ก็ได้แค่ ~3.8:1 อยู่แล้ว
+     พอเพิ่มความเข้มของสีพื้นการ์ดให้สดขึ้น จึงตกลงอีกเหลือ 2.9–3.2:1
+   แก้แบบจำกัดขอบเขต (เฉพาะใน .kpi-card) ไม่เปลี่ยน --ink-soft ทั้งแอป
+   ค่าใหม่คำนวณจากจุดที่สีพื้นการ์ดเข้มที่สุด (ผสม 34%) ของทั้ง 5 ตัวชี้วัด → ต่ำสุด 4.57:1 */
+html:not(.dark) .kpi-card{--ink-soft:#3A4E5C; --up:#075A52; --down:#8E2318;}
 .card{background:var(--bg-elev); border:1px solid var(--line); transition:box-shadow .25s ease, border-color .25s ease;}
 /* การ์ดกราฟ/เนื้อหา hover มีเงานุ่มขึ้นเล็กน้อย — เฉพาะการ์ดใหญ่ ไม่ใช่ปุ่ม/ช่องกรอก */
 section .card.rounded-2xl:hover{box-shadow:0 10px 34px -18px color-mix(in srgb, var(--gate-a1) 42%, transparent); border-color:var(--gate-a1);}
@@ -2499,225 +2581,163 @@ input[type="number"]::-webkit-inner-spin-button{opacity:1;}
 .spinner{border:3px solid var(--line); border-top-color:var(--gate-a1); border-radius:50%; animation:spin 0.8s linear infinite;}
 @keyframes spin{to{transform:rotate(360deg);}}
 /* ══════════════════════════════════════════════════════════════════════════
-   v116 — หน้า Welcome ออกแบบเอฟเฟกต์ใหม่ทั้งหมด: แนวคิด "Data Horizon"
+   v117 — หน้า Welcome ใหม่ทั้งหมด: แนวคิด "Neon Prism" (สีสันสดใส · ไม่มีกรอบ)
    ──────────────────────────────────────────────────────────────────────────
-   ★ ทำไมทิ้งของเดิมทั้งชุด (ออโรร่า/ละอองแสง/ประกาย/ดาวบริวาร/แสงกวาด):
-     ของเดิมสวยได้ แต่เป็นเอฟเฟกต์ "ทั่วไป" ที่เอาไปแปะแอปอะไรก็ได้
-     ไม่ได้บอกอะไรเลยว่านี่คือระบบวิเคราะห์ยอดลูกค้า-ยอดรถยนต์ของศูนย์การค้า
-   ★ ชุดใหม่สร้างจากเนื้อหาของโปรแกรมเอง — ผู้ใช้เห็นแล้วรู้ทันทีว่ากำลังเข้าอะไร:
-       ระนาบตารางเปอร์สเปกทีฟ = พื้นห้องข้อมูล ไหลเข้าหาผู้ชม
-       เส้นกราฟวาดตัวเอง + หัวเส้นเรืองแสงวิ่งนำ = แนวโน้มที่กำลังถูกประมวลผล
-       แท่งสกายไลน์ขึ้นจากขอบล่าง = ยอดรายเดือนที่กำลังก่อตัว
-       เรดาร์กวาดรอบโลโก้ + วงแหวนบอกระดับ = ระบบกำลังสแกนข้อมูล
-       เส้นแสงวิ่งรอบขอบการ์ด = สถานะ "กำลังทำงาน"
-   ★ ข้อกำหนดที่ยึดทุกชิ้น (หน้านี้เป็นหน้าพักหน้าจอที่ค้างทั้งวันบนจอส่วนกลาง):
-     ขยับด้วย transform / opacity / stroke-dashoffset เท่านั้น — ไม่มีอะไรบังคับ
-     คำนวณ layout ใหม่ทุกเฟรม และทุกชิ้นหยุดสนิทเมื่อระบบขอลดการเคลื่อนไหว
+   ตามที่ขอ: เอากรอบการ์ดออก ให้กลางจอเหลือแค่ "โลโก้ + ตัวหนังสือ"
+   และเปลี่ยนสีทั้งชุดเป็นโทนสดใส (ชมพูนีออน · ส้มไฟ · ไซแอน · ม่วงไฟฟ้า · เหลืองทอง)
+   ★ ปัญหาที่ต้องแก้ทันทีที่เอากรอบออก: เดิมการ์ดกระจกรมควันคือสิ่งที่ "การันตี"
+     ว่าตัวอักษรขาวอ่านออก (คอนทราสต์ 8–16:1) พอไม่มีการ์ด ตัวอักษรจะลอยบนพื้นสีสด
+     ตรงๆ — ถ้าก้อนสีส้ม/เหลืองลอยผ่านหลังข้อความ คอนทราสต์จะตกจนอ่านไม่ออก
+     จึงแทนการ์ดด้วย "สปอตไลต์มืด" ไล่เงาจางๆ อยู่หลังกลางจอ (.np-spot)
+     ซึ่งไม่มีขอบ ไม่มีกรอบ มองไม่เห็นเป็นรูปทรง แต่กดพื้นหลังเฉพาะจุดให้มืดพอ
+     และตัดลำแสงไม่ให้วิ่งผ่านช่วงกลางจอ (เริ่มยิงจากรัศมีนอกข้อความ)
+     → วัดคอนทราสต์จากพิกเซลจริงทุกบรรทัดแล้ว (ดูหัวไฟล์)
+   ★ ทุกชิ้นขยับด้วย transform/opacity เท่านั้น (หน้านี้ค้างได้ทั้งวันบนจอส่วนกลาง)
    ══════════════════════════════════════════════════════════════════════════ */
 
-/* เส้นแนวโน้มในโลโก้ (ใช้โดย SVG โลโก้ — คงไว้ตามเดิม) */
+/* เส้นแนวโน้มในโลโก้ (ใช้โดย SVG โลโก้ — คงไว้) */
 .intro-pulse-line{transform-origin:8px 24px; animation:introTrendGlow 2.2s ease-in-out infinite;}
 @keyframes introTrendGlow{0%,100%{opacity:.8; transform:scale(1);} 50%{opacity:1; transform:scale(1.04);}}
 
-/* ── 1) ระนาบตารางเปอร์สเปกทีฟ — "พื้นห้องข้อมูล" ──────────────────────────
-   เอียงระนาบด้วย rotateX แล้วเลื่อนลวดลายเข้าหาผู้ชมเป็นลูป
-   ★ เลื่อนด้วย translate3d บนตัวระนาบ ไม่ใช่ animate background-position
-     เพราะ background-position ทำให้เบราว์เซอร์ต้องระบายพื้นผิวใหม่ทุกเฟรม (paint)
-     ส่วน transform ยกไปทำบน GPU ได้ทั้งก้อน
-   ★ ความสูง 200% และเลื่อนลง 50% พอดีหนึ่งคาบของลาย จึงวนต่อเนื่องแบบไร้รอยต่อ */
-.dh-floor{position:absolute;left:-30%;right:-30%;bottom:-6%;height:62%;
-  pointer-events:none;z-index:0;overflow:hidden;
-  perspective:380px;perspective-origin:50% 0%;
-  -webkit-mask-image:linear-gradient(to bottom, transparent 0%, #000 36%, #000 78%, transparent 100%);
-          mask-image:linear-gradient(to bottom, transparent 0%, #000 36%, #000 78%, transparent 100%);}
-.dh-floor__plane{position:absolute;left:0;right:0;top:0;height:200%;
-  transform-origin:50% 0%;transform:rotateX(74deg);
-  background-image:
-    repeating-linear-gradient(to right, rgba(150,240,255,.34) 0 1px, transparent 1px 72px),
-    repeating-linear-gradient(to bottom, rgba(150,240,255,.30) 0 1px, transparent 1px 72px);
-  will-change:transform;animation:dhFloorRun 7s linear infinite;}
-@keyframes dhFloorRun{
-  from{transform:rotateX(74deg) translate3d(0,0,0);}
-  to  {transform:rotateX(74deg) translate3d(0,72px,0);}
-}
+/* ── 1) ก้อนสีสดลอยผสมกัน (gradient mesh เคลื่อนไหว) ─────────────────────
+   5 ก้อน 5 สี เบลอหนักจนขอบหาย เหลือเป็น "ผืนสี" ที่ค่อยๆ ไหลเปลี่ยนส่วนผสม
+   ★ แต่ละก้อนจังหวะ/ทิศต่างกัน ส่วนผสมของสีบนจอจึงไม่ซ้ำเดิมเป็นวงรอบสั้นๆ */
+.np-blob{position:absolute;border-radius:50%;pointer-events:none;z-index:0;
+  filter:blur(70px);opacity:.82;will-change:transform;}
+.np-blob--1{width:58vmax;height:58vmax;left:-18vmax;top:-22vmax;background:#FF2E93;animation:npBlob1 16s ease-in-out infinite alternate;}
+.np-blob--2{width:52vmax;height:52vmax;right:-16vmax;top:-18vmax;background:#FF8A00;animation:npBlob2 19s ease-in-out infinite alternate;}
+.np-blob--3{width:56vmax;height:56vmax;right:-20vmax;bottom:-24vmax;background:#00D9FF;animation:npBlob3 22s ease-in-out infinite alternate;}
+.np-blob--4{width:54vmax;height:54vmax;left:-20vmax;bottom:-22vmax;background:#8B3DFF;animation:npBlob4 18s ease-in-out infinite alternate;}
+.np-blob--5{width:30vmax;height:30vmax;left:34%;top:-10vmax;background:#FFD60A;opacity:.55;animation:npBlob5 24s ease-in-out infinite alternate;}
+@keyframes npBlob1{to{transform:translate3d(16vmax,12vmax,0) scale(1.18);}}
+@keyframes npBlob2{to{transform:translate3d(-14vmax,16vmax,0) scale(.86);}}
+@keyframes npBlob3{to{transform:translate3d(-18vmax,-12vmax,0) scale(1.15);}}
+@keyframes npBlob4{to{transform:translate3d(15vmax,-14vmax,0) scale(.9);}}
+@keyframes npBlob5{to{transform:translate3d(-12vmax,8vmax,0) scale(1.3);}}
 
-/* ── 2) เส้นกราฟวาดตัวเอง + หัวเส้นเรืองแสงวิ่งนำ ─────────────────────────
-   ★ ใช้ stroke-dashoffset ทั้งคู่ ไม่ใช้ offset-path:
-     ค่า dasharray/dashoffset อ้างอิง "ความยาวเส้นจริง" ของ path เดียวกัน
-     หัวเส้นจึงวิ่งตรงตำแหน่งที่เส้นกำลังถูกวาดพอดีเสมอ ไม่มีทางหลุดออกจากกัน
-     (ความยาวจริงวัดด้วย getTotalLength() ในเบราว์เซอร์ ไม่ได้ประมาณเอา — ดูค่าใน --dh-len)
-   ★ preserveAspectRatio="none" ให้เส้นยืดเต็มความกว้างจอทุกขนาด */
-.dh-chart{position:absolute;left:0;right:0;bottom:12%;height:34%;
-  pointer-events:none;z-index:0;opacity:1;}
-.dh-chart__line{fill:none;stroke:url(#dhLineGrad);stroke-width:3.4;stroke-linecap:round;
-  stroke-dasharray:var(--dh-len) var(--dh-len);stroke-dashoffset:var(--dh-len);
-  animation:dhDraw 9s cubic-bezier(.45,.05,.3,1) infinite;}
-@keyframes dhDraw{
-  0%      {stroke-dashoffset:var(--dh-len); opacity:0;}
-  6%      {opacity:1;}
-  55%,78% {stroke-dashoffset:0; opacity:1;}
-  96%,100%{stroke-dashoffset:0; opacity:0;}
-}
-/* หัวเส้น = เส้นประช่วงสั้นๆ ที่ไถลไปตาม path เดียวกัน ให้ภาพ "จุดแสงนำหน้า" */
-.dh-chart__comet{fill:none;stroke:#FFFFFF;stroke-width:6;stroke-linecap:round;
-  stroke-dasharray:0 var(--dh-len);stroke-dashoffset:0;
-  filter:drop-shadow(0 0 7px rgba(90,242,220,.95)) drop-shadow(0 0 16px rgba(255,111,216,.65));
-  animation:dhComet 9s cubic-bezier(.45,.05,.3,1) infinite;}
-@keyframes dhComet{
-  0%      {stroke-dasharray:0 var(--dh-len);  stroke-dashoffset:0;                    opacity:0;}
-  6%      {opacity:1;}
-  55%     {stroke-dasharray:14 var(--dh-len); stroke-dashoffset:calc(var(--dh-len) * -1 + 14px); opacity:1;}
-  70%,100%{stroke-dasharray:14 var(--dh-len); stroke-dashoffset:calc(var(--dh-len) * -1 + 14px); opacity:0;}
-}
-/* พื้นที่ใต้เส้น — จางมาก ให้เส้นมี "น้ำหนัก" ไม่ลอยเดี่ยว */
-.dh-chart__area{fill:url(#dhAreaGrad);opacity:0;animation:dhArea 9s ease-in-out infinite;}
-@keyframes dhArea{0%,14%{opacity:0;} 58%,78%{opacity:.55;} 96%,100%{opacity:0;}}
-
-/* ── 3) แท่งสกายไลน์ขึ้นจากขอบล่าง — "ยอดรายเดือนกำลังก่อตัว" ──────────────
-   ★ ใช้ scaleY + transform-origin ที่ฐาน ไม่ใช่ animate height
-     (height ทำให้คำนวณ layout ใหม่ทุกเฟรม — ต้องห้ามบนหน้าที่ค้างทั้งวัน)
-   ★ หน่วงเวลาเหลื่อมกันทีละแท่ง ให้ไล่ขึ้นเป็นระลอกจากซ้ายไปขวา */
-.dh-bars{position:absolute;left:0;right:0;bottom:0;height:22%;display:flex;align-items:flex-end;
-  gap:.9vw;padding:0 2vw;pointer-events:none;z-index:0;opacity:.55;
-  -webkit-mask-image:linear-gradient(to top, #000 0%, #000 45%, transparent 100%);
-          mask-image:linear-gradient(to top, #000 0%, #000 45%, transparent 100%);}
-.dh-bar{flex:1 1 0;border-radius:4px 4px 0 0;transform-origin:50% 100%;transform:scaleY(0);
-  background:linear-gradient(to top, rgba(60,200,230,.45), rgba(109,245,255,.95));
-  will-change:transform;animation:dhBarRise 9s cubic-bezier(.3,.9,.3,1) infinite;}
-@keyframes dhBarRise{
-  0%      {transform:scaleY(0);   opacity:0;}
-  10%     {opacity:1;}
-  46%,78% {transform:scaleY(1);   opacity:1;}
-  96%,100%{transform:scaleY(1);   opacity:0;}
-}
-
-/* ── 4) เรดาร์กวาดรอบโลโก้ + วงแหวนบอกระดับ ───────────────────────────────
-   แทน "ริงหมุน + ระลอกคลื่น + ดาวบริวาร" ชุดเดิมที่เป็นเอฟเฟกต์ตกแต่งล้วน
-   ชุดนี้สื่อความหมาย: ระบบกำลังสแกนข้อมูลอยู่ */
-.dh-radar{position:absolute;left:50%;top:53px;width:158px;height:158px;
-  margin-left:-79px;border-radius:50%;pointer-events:none;z-index:0;
+/* ── 2) แสงปริซึมหมุน — ประกายสีรุ้งจางๆ หมุนรอบกลางจอ ─────────────────── */
+.np-prism{position:absolute;left:50%;top:50%;width:220vmax;height:220vmax;
+  margin-left:-110vmax;margin-top:-110vmax;pointer-events:none;z-index:0;opacity:.32;
   background:conic-gradient(from 0deg,
-    rgba(90,242,220,.55) 0deg, rgba(90,242,220,.12) 26deg, transparent 58deg, transparent 360deg);
-  -webkit-mask-image:radial-gradient(circle, transparent 34%, #000 38%, #000 100%);
-          mask-image:radial-gradient(circle, transparent 34%, #000 38%, #000 100%);
-  will-change:transform;animation:dhRadarSpin 4.2s linear infinite;}
-@keyframes dhRadarSpin{to{transform:rotate(360deg);}}
-/* วงแหวนบอกระดับ — เส้นประบางๆ สองวง หายใจสวนจังหวะกันเล็กน้อย */
-.dh-ring{position:absolute;left:50%;top:53px;border-radius:50%;pointer-events:none;z-index:0;
-  border:1px dashed rgba(173,246,255,.42);will-change:transform,opacity;
-  animation:dhRingPulse 4.2s ease-in-out infinite;}
-.dh-ring--1{width:158px;height:158px;margin-left:-79px;}
-.dh-ring--2{width:190px;height:190px;margin-left:-95px;animation-delay:-2.1s;
-  border-color:rgba(255,111,216,.30);}
-@keyframes dhRingPulse{
-  0%,100%{transform:scale(.97); opacity:.45;}
-  50%    {transform:scale(1.03);opacity:.95;}
+    rgba(255,46,147,.0) 0deg, rgba(255,46,147,.55) 30deg, rgba(255,46,147,0) 60deg,
+    rgba(0,217,255,0) 120deg, rgba(0,217,255,.5) 150deg, rgba(0,217,255,0) 180deg,
+    rgba(255,214,10,0) 240deg, rgba(255,214,10,.45) 270deg, rgba(255,214,10,0) 300deg, transparent 360deg);
+  will-change:transform;animation:npPrismSpin 36s linear infinite;}
+@keyframes npPrismSpin{to{transform:rotate(360deg);}}
+
+/* ── 3) ลำแสงความเร็ว (warp streaks) พุ่งออกจากกลางจอ ─────────────────────
+   แรงบันดาลใจจากภาพรถนีออนที่เคยส่งมา — เส้นแสงหลากสีพุ่งออกจากจุดหาย
+   ★ ทุกเส้นใช้คีย์เฟรมเดียวกัน แต่ส่งมุมผ่านตัวแปร --r (ตั้งในแต่ละเส้น)
+     จึงไม่ต้องเขียนคีย์เฟรม 32 ชุด และไม่ต้องคำนวณมุมด้วย JS ทุกเฟรม
+   ★ เริ่มยิงที่รัศมี max(27vmin, 240px) — นอกขอบโลโก้/ข้อความทุกขนาดจอ
+     ต้องมีขั้นต่ำเป็น px เพราะกลุ่มข้อความกลางจอมีขนาดคงที่ (ไกลสุด ~220px จากกลางจอ)
+     แต่ vmin หดตามจอ: วัดจริงบนมือถือ 390px ได้แค่ 116px → ลำแสงวิ่งตัดหลังตัวหนังสือ ไม่ใช่จากจุดศูนย์กลาง
+     เส้นแสงจึงไม่วิ่งตัดหลังตัวหนังสือ — คอนทราสต์ของข้อความไม่ถูกรบกวน */
+.np-rays{position:absolute;left:50%;top:50%;width:0;height:0;pointer-events:none;z-index:0;}
+.np-ray{position:absolute;left:0;top:-1px;width:26vmin;height:2px;border-radius:2px;
+  transform-origin:0 50%;opacity:0;will-change:transform,opacity;
+  background:linear-gradient(90deg, transparent 0%, var(--c) 55%, #fff 100%);
+  box-shadow:0 0 8px var(--c);
+  animation:npRay var(--d,3.6s) cubic-bezier(.55,.06,.68,.19) var(--w,0s) infinite;}
+@keyframes npRay{
+  0%  {transform:rotate(var(--r)) translateX(max(27vmin, 240px)) scaleX(.08); opacity:0;}
+  18% {opacity:.95;}
+  100%{transform:rotate(var(--r)) translateX(max(82vmin, 420px)) scaleX(1);   opacity:0;}
 }
-/* แสงเรืองใต้โลโก้ — คงไว้ แต่ย้อมเป็นคู่สีของชุดใหม่ */
-.dh-glow{position:absolute;left:50%;top:58px;width:150px;height:150px;margin-left:-75px;
-  border-radius:50%;pointer-events:none;z-index:0;filter:blur(14px);
-  background:radial-gradient(circle, rgba(90,242,220,.55), rgba(255,111,216,.18) 55%, transparent 72%);
-  animation:dhGlowBreath 4.2s ease-in-out infinite;}
-@keyframes dhGlowBreath{0%,100%{opacity:.55;transform:scale(.94);} 50%{opacity:1;transform:scale(1.06);}}
 
-/* ── 5) เส้นแสงวิ่งรอบขอบการ์ด — สถานะ "กำลังทำงาน" ───────────────────────
-   เทคนิค: วาดไล่สีแบบ conic เต็มกล่อง แล้ว "คว้าน" ตรงกลางออกด้วย mask 2 ชั้น
-   (content-box ซ้อนกับเต็มกล่อง แล้ว composite แบบ exclude) เหลือเฉพาะวงขอบหนา 1.6px
-   ★ มุมของ conic หมุนได้ต้องประกาศ @property ก่อน เพราะมุมไม่ใช่ค่าที่เบราว์เซอร์
-     รู้วิธี interpolate เองโดยปริยาย
-   ★ เบราว์เซอร์เก่าที่ไม่รองรับ @property จะไม่หมุน แต่ยังเห็นเป็นประกายนิ่งที่ขอบ
-     — เสียแค่การเคลื่อนไหว ไม่ใช่หน้าพัง จึงยอมรับได้โดยไม่ต้องเขียนทางหนีแยก */
-@property --dh-angle{syntax:'<angle>';initial-value:0deg;inherits:false;}
-.dh-trace{position:absolute;inset:-1px;border-radius:33px;padding:1.6px;pointer-events:none;z-index:3;
-  background:conic-gradient(from var(--dh-angle),
-    transparent 0% 62%, rgba(90,242,220,.95) 76%, rgba(255,111,216,.95) 86%, transparent 96% 100%);
-  -webkit-mask:linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
-  -webkit-mask-composite:xor; mask:linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
-  mask-composite:exclude; animation:dhTraceSpin 5.5s linear infinite;}
-@keyframes dhTraceSpin{to{--dh-angle:360deg;}}
-@media (max-width:520px){ .dh-trace{border-radius:27px;} }
+/* ── 4) ละอองโบเก้สีลอยขึ้นช้าๆ ───────────────────────────────────────── */
+.np-bokeh{position:absolute;bottom:-8%;border-radius:50%;pointer-events:none;z-index:0;
+  filter:blur(1.5px);opacity:0;will-change:transform,opacity;
+  animation:npBokeh var(--d,14s) linear var(--w,0s) infinite;}
+@keyframes npBokeh{
+  0%  {transform:translate3d(0,0,0) scale(.7);         opacity:0;}
+  15% {opacity:.85;}
+  85% {opacity:.6;}
+  100%{transform:translate3d(var(--dx,20px),-112vh,0) scale(1.1); opacity:0;}
+}
 
-/* ── 6) เงาขอบจอ + การ์ดกระจก (โครงเดิม ปรับโทนให้เข้ากับชุดใหม่) ─────────── */
+/* ── 5) สปอตไลต์มืดหลังกลางจอ — ทำหน้าที่แทนการ์ดที่เอาออก ──────────────
+   ไม่มีขอบ ไม่มีรูปทรงให้เห็น เป็นเงาไล่จางล้วนๆ จึงไม่นับเป็น "กรอบ"
+   แต่กดพื้นหลังตรงตำแหน่งข้อความให้มืดพอสำหรับตัวอักษรขาว */
+.np-spot{position:absolute;left:50%;top:50%;width:min(780px,118vw);height:min(660px,96vh);
+  transform:translate(-50%,-50%);pointer-events:none;z-index:0;
+  background:radial-gradient(closest-side, rgba(20,3,52,.70) 0%, rgba(20,3,52,.56) 46%, rgba(20,3,52,.20) 76%, transparent 100%);}
+/* เงาขอบจอบางๆ ให้สีกลางจอเด่นขึ้น */
 .intro-vignette{position:absolute;inset:0;pointer-events:none;z-index:0;
-  background:radial-gradient(ellipse 72% 62% at 50% 44%, transparent 0%, rgba(8,3,34,.34) 55%, rgba(8,3,34,.80) 100%);}
-/* การ์ดยังเป็น "กระจกรมควัน" เหมือน v114 เพราะค่าอัลฟาถูกคำนวณมาแล้วว่า
-   ตัวอักษรขาวผ่าน WCAG AA ทุกตำแหน่งของไล่สีพื้นหลัง — ไม่มีเหตุให้เปลี่ยน */
-.intro-card{position:relative;z-index:1;display:inline-block;
-  padding:38px 54px 40px;border-radius:32px;
-  background:linear-gradient(160deg, rgba(10,3,38,.68), rgba(22,7,70,.58));
-  border:1px solid rgba(173,246,255,.20);
-  box-shadow:0 30px 86px -28px rgba(6,2,30,.88), 0 0 52px -14px rgba(90,242,220,.28),
-             inset 0 1px 0 rgba(255,255,255,.22);}
-@supports (backdrop-filter:blur(1px)) or (-webkit-backdrop-filter:blur(1px)){
-  .intro-card{backdrop-filter:blur(17px) saturate(1.35);-webkit-backdrop-filter:blur(17px) saturate(1.35);}
-}
-@media (max-width:520px){ .intro-card{padding:30px 24px 32px;border-radius:26px;} }
-@media (prefers-reduced-transparency:reduce){
-  .intro-card{backdrop-filter:none;-webkit-backdrop-filter:none;background:rgba(10,3,38,.86);}
-}
+  background:radial-gradient(ellipse 80% 70% at 50% 50%, transparent 55%, rgba(10,0,30,.45) 100%);}
 
-/* ── 7) ลำดับการปรากฏ — ไล่จากฉากหลัง → การ์ด → เนื้อหาในการ์ด ─────────────
-   ★ ของเดิมทุกชิ้นเริ่มพร้อมกันตอน 0 วินาที ทำให้ภาพ "มาทั้งก้อน" แล้วนิ่ง
-     ชุดใหม่ไล่ทีละชั้นด้วยหน่วงเวลาเพิ่มขึ้นทีละน้อย — ตาจึงถูกพาไปถึงกลางจอเอง */
-.dh-floor,.dh-chart,.dh-bars{animation-delay:.15s;}
-.intro-card{animation:dhCardIn 1s cubic-bezier(.22,1,.36,1) both;}
-@keyframes dhCardIn{
-  0%  {opacity:0; transform:translateY(30px) scale(.93); filter:blur(16px);}
-  60% {opacity:1;}
-  100%{opacity:1; transform:translateY(0) scale(1);      filter:blur(0);}
-}
-.intro-logo{animation:dhLogoIn 1s cubic-bezier(.34,1.5,.5,1) .18s both;}
-@keyframes dhLogoIn{0%{opacity:0;transform:scale(.55) rotate(-9deg);} 100%{opacity:1;transform:scale(1) rotate(0);}}
-.intro-title{animation:dhUp .75s cubic-bezier(.22,1,.36,1) .46s both;}
-.intro-sub  {animation:dhUp .75s cubic-bezier(.22,1,.36,1) .58s both;}
-#introClockDate{animation:dhUp .75s cubic-bezier(.22,1,.36,1) .70s both;}
-#introClock    {animation:dhUp .75s cubic-bezier(.22,1,.36,1) .80s both;}
-@keyframes dhUp{0%{opacity:0;transform:translateY(16px);} 100%{opacity:1;transform:translateY(0);}}
-#introHint{animation:dhUp .8s cubic-bezier(.22,1,.36,1) .9s both, dhHintPulse 2.8s ease-in-out 1.7s infinite;}
-@keyframes dhHintPulse{0%,100%{opacity:.78;transform:translateY(0);} 50%{opacity:1;transform:translateY(-3px);}}
-.intro-progress{background:linear-gradient(90deg,#5AF2DC,#8CEBFF 45%,#FF6FD8);
-  box-shadow:0 0 12px rgba(90,242,220,.6);}
-/* ตัวนับถอยหลังจริง — อิงเวลาที่เหลือจริงของ introAutoTimer ไม่ใช่ข้อความหลอก */
-#introCountdown{animation:dhUp .7s ease .95s both;}
+/* ── 6) กลางจอ: ไม่มีกรอบแล้ว — เหลือโลโก้ + ตัวหนังสือ ─────────────────
+   .intro-card ยังคงอยู่เป็นแค่ตัวจัดวาง (มีโค้ดอ้างถึงหลายจุด) แต่ไม่มีพื้น ขอบ เงา หรือเบลอ */
+.intro-card{position:relative;z-index:1;display:inline-block;padding:20px 28px;
+  background:none !important;border:0 !important;box-shadow:none !important;
+  backdrop-filter:none !important;-webkit-backdrop-filter:none !important;}
+@media (max-width:520px){ .intro-card{padding:16px 18px;} }
 
-/* ── 8) ออกจากหน้า Welcome — "พุ่งทะลุเข้าไป" แทนการจางหายเฉยๆ ──────────── */
+/* แสงเรืองสีรุ้งหลังโลโก้ — เบลอจนไม่มีขอบ (เป็นแสง ไม่ใช่วงแหวน/กรอบ) */
+.np-halo{position:absolute;left:50%;top:6px;width:190px;height:190px;margin-left:-95px;
+  border-radius:50%;pointer-events:none;z-index:0;filter:blur(28px);opacity:.85;
+  background:conic-gradient(from 0deg,#FF2E93,#FF8A00,#FFD60A,#00D9FF,#8B3DFF,#FF2E93);
+  will-change:transform,opacity;animation:npHaloSpin 7s linear infinite, npHaloBreath 3.6s ease-in-out infinite;}
+@keyframes npHaloSpin{to{transform:rotate(360deg);}}
+@keyframes npHaloBreath{0%,100%{opacity:.62;} 50%{opacity:.95;}}
+
+/* ตัวหนังสือ: ขาวล้วน (อ่านง่ายสุด) + เงาเรืองสีชมพู/ไซแอนให้เข้ากับธีมสีสด */
+.intro-title{text-shadow:0 0 26px rgba(255,46,147,.55), 0 0 44px rgba(0,217,255,.30), 0 2px 14px rgba(8,0,24,.7) !important;}
+.intro-sub,#introClockDate,#introCountdown{text-shadow:0 1px 10px rgba(8,0,24,.85);}
+#introClock{text-shadow:0 0 22px rgba(0,217,255,.45), 0 2px 16px rgba(8,0,24,.75) !important;}
+/* แถบความคืบหน้า: สีรุ้ง ไหลวน (ตัวแถบยังเป็นตัวนับเวลาจริงตามเดิม) */
+#introProgressWrap{background:rgba(255,255,255,.18) !important;}
+.intro-progress{background:linear-gradient(90deg,#FF2E93,#FF8A00,#FFD60A,#00D9FF,#8B3DFF) !important;
+  background-size:200% 100% !important;box-shadow:0 0 14px rgba(255,46,147,.65);
+  animation:npProgFlow 1.6s linear infinite;}
+@keyframes npProgFlow{to{background-position:-200% 0;}}
+/* คำชวนแตะ (โหมดพักหน้าจอ): ข้อความล้วน ไม่มีกรอบแคปซูล ตามที่ขอให้ไม่มีกรอบ */
+#introHint{border:0 !important;background:none !important;backdrop-filter:none !important;
+  -webkit-backdrop-filter:none !important;padding:4px 0 !important;font-size:15px !important;
+  text-shadow:0 0 16px rgba(255,46,147,.7), 0 1px 10px rgba(8,0,24,.85);}
+
+/* ── 7) ลำดับการปรากฏ: ผืนสี → ลำแสงระเบิดออก → โลโก้ → ข้อความ ───────── */
+.np-blob{animation-delay:0s;}
+.np-burst .np-ray{animation-duration:1.5s !important;}   /* 1.6 วิแรก: ลำแสงพุ่งเร็ว = "จุดระเบิด" */
+.intro-logo{animation:npLogoIn 1.05s cubic-bezier(.34,1.56,.5,1) .15s both;}
+@keyframes npLogoIn{0%{opacity:0;transform:scale(.4) rotate(-14deg);filter:blur(10px);}
+  100%{opacity:1;transform:scale(1) rotate(0);filter:blur(0);}}
+.intro-title{animation:npUp .8s cubic-bezier(.22,1,.36,1) .45s both;}
+.intro-sub  {animation:npUp .8s cubic-bezier(.22,1,.36,1) .57s both;}
+#introClockDate{animation:npUp .8s cubic-bezier(.22,1,.36,1) .69s both;}
+#introClock    {animation:npUp .8s cubic-bezier(.22,1,.36,1) .79s both;}
+#introCountdown{animation:npUp .7s ease .95s both;}
+@keyframes npUp{0%{opacity:0;transform:translateY(18px);letter-spacing:.18em;} 100%{opacity:1;transform:translateY(0);}}
+#introHint{animation:npUp .8s cubic-bezier(.22,1,.36,1) .9s both, npHint 2.6s ease-in-out 1.7s infinite;}
+@keyframes npHint{0%,100%{opacity:.78;transform:translateY(0);} 50%{opacity:1;transform:translateY(-3px);}}
+
+/* ── 8) ออกจากหน้า Welcome: พุ่งทะลุเข้าไป (zoom) ────────────────────── */
 #introSplash{transition:opacity .62s ease, visibility .62s ease, transform .62s cubic-bezier(.5,0,.75,0);}
-#introSplash.intro-hide{opacity:0;visibility:hidden;pointer-events:none;transform:scale(1.14);}
+#introSplash.intro-hide{opacity:0;visibility:hidden;pointer-events:none;transform:scale(1.16);}
 
-/* ── 9) โหมดพักหน้าจอ: ยืดจังหวะให้ช้าลง ไม่ใช่เร่งให้เร็วขึ้น ───────────────
-   ★ กลับทิศจากของเดิมโดยตั้งใจ: หน้านี้ค้างอยู่หน้าจอได้ทั้งวัน
-     จังหวะที่เร็วจะกวนสายตาคนที่เดินผ่านตลอดเวลา ส่วนจังหวะช้าอ่านได้ว่า
-     "ระบบยังทำงานอยู่" โดยไม่เรียกร้องความสนใจ */
-.intro-idle .dh-floor__plane{animation-duration:11s;}
-.intro-idle .dh-chart__line,
-.intro-idle .dh-chart__comet,
-.intro-idle .dh-chart__area,
-.intro-idle .dh-bar{animation-duration:14s;}
-.intro-idle .dh-radar,.intro-idle .dh-ring,.intro-idle .dh-glow{animation-duration:6s;}
-.intro-idle .intro-logo{animation:dhLogoIn 1s cubic-bezier(.34,1.5,.5,1) .18s both, dhIdleBreath 5s ease-in-out 1.4s infinite;}
-@keyframes dhIdleBreath{0%,100%{transform:scale(1);} 50%{transform:scale(1.035);}}
+/* ── 9) โหมดพักหน้าจอ: ทุกอย่างช้าลงและนุ่มลง (จอค้างทั้งวัน ไม่ควรกวนสายตาคนเดินผ่าน) ── */
+.intro-idle .np-ray{animation-duration:7.5s !important;}
+.intro-idle .np-rays{opacity:.65;}
+.intro-idle .np-blob--1{animation-duration:26s;} .intro-idle .np-blob--2{animation-duration:30s;}
+.intro-idle .np-blob--3{animation-duration:34s;} .intro-idle .np-blob--4{animation-duration:28s;}
+.intro-idle .np-prism{animation-duration:60s;}
+.intro-idle .intro-logo{animation:npLogoIn 1.05s cubic-bezier(.34,1.56,.5,1) .15s both, npIdleBreath 5s ease-in-out 1.4s infinite;}
+@keyframes npIdleBreath{0%,100%{transform:scale(1);} 50%{transform:scale(1.04);}}
 
-/* ── 10) เคารพการตั้งค่าลดการเคลื่อนไหวเสมอ ───────────────────────────────
-   ทุกชิ้นยังอยู่ครบและอยู่ในสถานะ "วาดเสร็จแล้ว" — ไม่ใช่หายไปหรือค้างครึ่งทาง
-   (เส้นกราฟที่หยุดกลางคันจะดูเหมือนหน้าค้าง ซึ่งแย่กว่าไม่มีแอนิเมชันเลย) */
+/* ── 10) ลดการเคลื่อนไหว: ทุกชิ้นหยุดนิ่งแต่ยังมองเห็นครบ ───────────────── */
 @media (prefers-reduced-motion: reduce){
-  .dh-floor__plane,.dh-radar,.dh-ring,.dh-glow,.dh-trace,
-  .intro-card,.intro-logo,.intro-title,.intro-sub,
-  #introClock,#introClockDate,#introHint,#introCountdown,.intro-pulse-line{animation:none !important;}
-  .dh-chart__line{animation:none !important;stroke-dashoffset:0;}
-  .dh-chart__comet{animation:none !important;opacity:0;}
-  .dh-chart__area{animation:none !important;opacity:.5;}
-  .dh-bar{animation:none !important;transform:scaleY(1);}
+  .np-blob,.np-prism,.np-halo,.intro-pulse-line,.intro-logo,.intro-title,.intro-sub,
+  #introClock,#introClockDate,#introHint,#introCountdown,.intro-progress{animation:none !important;}
+  .np-ray,.np-bokeh{animation:none !important;opacity:0 !important;}  /* เส้นแสงนิ่งๆ ไม่มีความหมาย จึงซ่อน */
   #introSplash{transition:opacity .3s ease, visibility .3s ease;}
   #introSplash.intro-hide{transform:none;}
 }
-/* ── 11) จอเล็ก: ตัดชิ้นที่กิน GPU มากสุดออก และย่อวงเรดาร์ให้พอดีโลโก้ที่เล็กลง ── */
+/* ── 11) จอเล็ก: ลดลำแสงและโบเก้ลงครึ่งหนึ่ง เบลอน้อยลง (เบลอหนักบนพื้นที่ใหญ่กิน GPU มือถือ) ── */
 @media (max-width:520px){
-  .dh-floor{display:none;}            /* ระนาบเปอร์สเปกทีฟ = ชิ้นที่แพงสุดบนมือถือ */
-  .dh-bar:nth-child(2n){display:none;} /* ลดจำนวนแท่งลงครึ่งหนึ่ง */
-  .dh-radar,.dh-ring--1{width:132px;height:132px;margin-left:-66px;}
-  .dh-ring--2{width:158px;height:158px;margin-left:-79px;}
-  .dh-glow{width:126px;height:126px;margin-left:-63px;}
+  .np-ray:nth-child(2n),.np-bokeh:nth-of-type(2n){display:none;}
+  .np-blob{filter:blur(48px);}
+  .np-halo{width:156px;height:156px;margin-left:-78px;}
+  .np-spot{width:130vw;height:84vh;}
 }
 /* ★ v116: บล็อกนี้คือเอฟเฟกต์พื้นหลังแดชบอร์ด (v114–v115) — ไม่เกี่ยวกับหน้า Welcome
    วางต่อท้ายส่วนของหน้า Welcome เพราะอยู่ตำแหน่งนี้มาตั้งแต่ v114
@@ -2750,8 +2770,8 @@ input[type="number"]::-webkit-inner-spin-button{opacity:1;}
    เหตุผล: ต้องการให้ก้อนแสง "หายใจ" (ความทึบขึ้นลงช้าๆ) แต่โหมดสว่างกับโหมดมืด
    ใช้ค่าฐานคนละค่า ถ้าเขียน opacity ตรงๆ ใน @keyframes มันจะทับค่าฐานทั้งสองโหมด
    พอเก็บเป็นตัวแปรแล้วใช้ calc() ในคีย์เฟรม จังหวะหายใจจึงอิงค่าฐานของแต่ละโหมดเอง */
-.bgfx-orb{--orb-o:.22; opacity:var(--orb-o);}
-html.dark .bgfx-orb{--orb-o:.30; filter:blur(78px);}
+.bgfx-orb{--orb-o:.28; opacity:var(--orb-o);}
+html.dark .bgfx-orb{--orb-o:.36; filter:blur(78px);}
 .bgfx-o1{width:46vw;height:46vw;min-width:360px;min-height:360px; left:-12vw; top:-14vh;
   background:radial-gradient(circle at 50% 50%, var(--gate-a1), transparent 68%);
   animation:bgfxDrift1 34s ease-in-out infinite alternate, bgfxBreath 20s ease-in-out infinite;}
@@ -3342,65 +3362,75 @@ main .card{max-width:100%;}
 </div>
 
 <!-- ===== Intro / Splash Screen ===== -->
-<div id="introSplash" style="position:fixed;inset:0;z-index:9999;display:flex;flex-direction:column;align-items:center;justify-content:center;
-  background:linear-gradient(165deg,#120540 0%,#2C0C86 24%,#1B3FC4 48%,#0B86D6 72%,#19C9D6 100%);color:#fff;overflow:hidden;">
+<div id="introSplash" class="np-burst" style="position:fixed;inset:0;z-index:9999;display:flex;flex-direction:column;align-items:center;justify-content:center;
+  background:#14012F;color:#fff;overflow:hidden;">
 
-  <!-- ════════ v116 "Data Horizon" — ฉากหลังสร้างจากเนื้อหาของโปรแกรมเอง ════════ -->
-
-  <!-- (1) ระนาบตารางเปอร์สเปกทีฟ = พื้นห้องข้อมูล ไหลเข้าหาผู้ชม -->
-  <div class="dh-floor"><div class="dh-floor__plane"></div></div>
-
-  <!-- (3) แท่งสกายไลน์ = ยอดรายเดือนกำลังก่อตัว ไล่ขึ้นเป็นระลอกจากซ้ายไปขวา -->
-  <div class="dh-bars">
-    <div class="dh-bar" style="animation-delay:0.00s;height:34%;"></div>
-    <div class="dh-bar" style="animation-delay:0.09s;height:52%;"></div>
-    <div class="dh-bar" style="animation-delay:0.18s;height:41%;"></div>
-    <div class="dh-bar" style="animation-delay:0.27s;height:66%;"></div>
-    <div class="dh-bar" style="animation-delay:0.36s;height:58%;"></div>
-    <div class="dh-bar" style="animation-delay:0.45s;height:78%;"></div>
-    <div class="dh-bar" style="animation-delay:0.54s;height:62%;"></div>
-    <div class="dh-bar" style="animation-delay:0.63s;height:88%;"></div>
-    <div class="dh-bar" style="animation-delay:0.72s;height:71%;"></div>
-    <div class="dh-bar" style="animation-delay:0.81s;height:95%;"></div>
-    <div class="dh-bar" style="animation-delay:0.90s;height:80%;"></div>
-    <div class="dh-bar" style="animation-delay:0.99s;height:100%;"></div>
-    <div class="dh-bar" style="animation-delay:1.08s;height:86%;"></div>
-    <div class="dh-bar" style="animation-delay:1.17s;height:72%;"></div>
-    <div class="dh-bar" style="animation-delay:1.26s;height:58%;"></div>
-    <div class="dh-bar" style="animation-delay:1.35s;height:44%;"></div>
+  <!-- ════════ v117 "Neon Prism" — ฉากหลังสีสดใสทั้งหมด (ไม่มีกรอบกลางจอ) ════════ -->
+  <!-- (1) ผืนสีสด 5 ก้อน ไหลผสมกัน: ชมพูนีออน · ส้มไฟ · ไซแอน · ม่วงไฟฟ้า · เหลืองทอง -->
+  <div class="np-blob np-blob--1"></div>
+  <div class="np-blob np-blob--2"></div>
+  <div class="np-blob np-blob--3"></div>
+  <div class="np-blob np-blob--4"></div>
+  <div class="np-blob np-blob--5"></div>
+  <!-- (2) แสงปริซึมสีรุ้งหมุนช้าๆ รอบกลางจอ -->
+  <div class="np-prism"></div>
+  <!-- (3) ลำแสงความเร็ว 32 เส้น พุ่งออกจากกลางจอ — มุม/สี/จังหวะต่างกันทุกเส้น
+       ★ เริ่มยิงนอกรัศมีข้อความ จึงไม่วิ่งตัดหลังตัวหนังสือ -->
+  <div class="np-rays" aria-hidden="true">
+    <i class="np-ray" style="--r:-2.1deg;--c:#FF2E93;--d:3.10s;--w:-1.84s;"></i>
+    <i class="np-ray" style="--r:8.5deg;--c:#00D9FF;--d:3.53s;--w:-0.54s;"></i>
+    <i class="np-ray" style="--r:22.7deg;--c:#FF8A00;--d:3.82s;--w:-1.60s;"></i>
+    <i class="np-ray" style="--r:36.2deg;--c:#8B3DFF;--d:2.86s;--w:-4.49s;"></i>
+    <i class="np-ray" style="--r:44.5deg;--c:#FFD60A;--d:3.10s;--w:-1.78s;"></i>
+    <i class="np-ray" style="--r:55.6deg;--c:#FF5BD1;--d:2.81s;--w:-3.23s;"></i>
+    <i class="np-ray" style="--r:68.6deg;--c:#3DFFC5;--d:3.87s;--w:-2.93s;"></i>
+    <i class="np-ray" style="--r:82.0deg;--c:#FF2E93;--d:3.67s;--w:-2.53s;"></i>
+    <i class="np-ray" style="--r:93.5deg;--c:#00D9FF;--d:4.40s;--w:-0.79s;"></i>
+    <i class="np-ray" style="--r:98.1deg;--c:#FF8A00;--d:4.43s;--w:-2.86s;"></i>
+    <i class="np-ray" style="--r:108.7deg;--c:#8B3DFF;--d:3.18s;--w:-1.53s;"></i>
+    <i class="np-ray" style="--r:123.0deg;--c:#FFD60A;--d:3.27s;--w:-1.42s;"></i>
+    <i class="np-ray" style="--r:135.4deg;--c:#FF5BD1;--d:4.45s;--w:-3.23s;"></i>
+    <i class="np-ray" style="--r:149.8deg;--c:#3DFFC5;--d:2.81s;--w:-1.31s;"></i>
+    <i class="np-ray" style="--r:160.6deg;--c:#FF2E93;--d:3.86s;--w:-1.51s;"></i>
+    <i class="np-ray" style="--r:166.8deg;--c:#00D9FF;--d:4.33s;--w:-4.58s;"></i>
+    <i class="np-ray" style="--r:181.2deg;--c:#FF8A00;--d:4.16s;--w:-3.40s;"></i>
+    <i class="np-ray" style="--r:193.3deg;--c:#8B3DFF;--d:3.60s;--w:-3.75s;"></i>
+    <i class="np-ray" style="--r:203.6deg;--c:#FFD60A;--d:4.45s;--w:-4.13s;"></i>
+    <i class="np-ray" style="--r:212.0deg;--c:#FF5BD1;--d:3.71s;--w:-1.79s;"></i>
+    <i class="np-ray" style="--r:221.9deg;--c:#3DFFC5;--d:3.33s;--w:-4.50s;"></i>
+    <i class="np-ray" style="--r:235.3deg;--c:#FF2E93;--d:3.01s;--w:-2.05s;"></i>
+    <i class="np-ray" style="--r:248.5deg;--c:#00D9FF;--d:4.27s;--w:-1.56s;"></i>
+    <i class="np-ray" style="--r:259.8deg;--c:#FF8A00;--d:3.27s;--w:-4.52s;"></i>
+    <i class="np-ray" style="--r:269.6deg;--c:#8B3DFF;--d:4.24s;--w:-4.18s;"></i>
+    <i class="np-ray" style="--r:282.9deg;--c:#FFD60A;--d:3.63s;--w:-3.21s;"></i>
+    <i class="np-ray" style="--r:293.0deg;--c:#FF5BD1;--d:4.04s;--w:-4.44s;"></i>
+    <i class="np-ray" style="--r:302.7deg;--c:#3DFFC5;--d:3.39s;--w:-1.30s;"></i>
+    <i class="np-ray" style="--r:314.7deg;--c:#FF2E93;--d:4.29s;--w:-1.51s;"></i>
+    <i class="np-ray" style="--r:326.4deg;--c:#00D9FF;--d:4.60s;--w:-1.11s;"></i>
+    <i class="np-ray" style="--r:334.4deg;--c:#FF8A00;--d:2.90s;--w:-3.40s;"></i>
+    <i class="np-ray" style="--r:345.3deg;--c:#8B3DFF;--d:3.44s;--w:-3.10s;"></i>
   </div>
-
-  <!-- (2) เส้นกราฟวาดตัวเอง + หัวเส้นเรืองแสงวิ่งนำ
-       ★ ความยาวเส้นจริงถูกวัดด้วย getTotalLength() แล้วเขียนลง --dh-len ตอนโหลด
-         (ดู initIntroChart) ไม่ได้ประมาณค่าเอา — ถ้าใส่ตัวเลขมั่ว หัวเส้นจะวิ่งไม่ตรงกับเส้น -->
-  <svg class="dh-chart" viewBox="0 0 1200 320" preserveAspectRatio="none" aria-hidden="true">
-    <defs>
-      <linearGradient id="dhLineGrad" x1="0" y1="0" x2="1200" y2="0" gradientUnits="userSpaceOnUse">
-        <stop offset="0" stop-color="#5AF2DC"/><stop offset=".55" stop-color="#8CEBFF"/>
-        <stop offset="1" stop-color="#FF6FD8"/>
-      </linearGradient>
-      <linearGradient id="dhAreaGrad" x1="0" y1="0" x2="0" y2="320" gradientUnits="userSpaceOnUse">
-        <stop offset="0" stop-color="#5AF2DC" stop-opacity=".42"/>
-        <stop offset="1" stop-color="#5AF2DC" stop-opacity="0"/>
-      </linearGradient>
-    </defs>
-    <path class="dh-chart__area"  d="M0,268 L100,236 L200,252 L300,186 L400,206 L500,164 L600,192 L700,128 L800,152 L900,96 L1000,124 L1100,62 L1200,88 L1200,320 L0,320 Z"/>
-    <path class="dh-chart__line"  id="dhLinePath" d="M0,268 L100,236 L200,252 L300,186 L400,206 L500,164 L600,192 L700,128 L800,152 L900,96 L1000,124 L1100,62 L1200,88"/>
-    <path class="dh-chart__comet" d="M0,268 L100,236 L200,252 L300,186 L400,206 L500,164 L600,192 L700,128 L800,152 L900,96 L1000,124 L1100,62 L1200,88"/>
-  </svg>
-
-  <!-- เงาขอบจอ — กดพื้นหลังรอบนอกให้มืดลง ดึงสายตาเข้าหากลางจอ -->
+  <!-- (4) ละอองโบเก้สีลอยขึ้น -->
+  <i class="np-bokeh" style="left:57.3%;width:12px;height:12px;background:#FF2E93;box-shadow:0 0 20px #FF2E93;--d:14.1s;--w:-5.0s;--dx:7px;"></i>
+  <i class="np-bokeh" style="left:84.9%;width:14px;height:14px;background:#8B3DFF;box-shadow:0 0 22px #8B3DFF;--d:17.1s;--w:-6.3s;--dx:-8px;"></i>
+  <i class="np-bokeh" style="left:12.5%;width:14px;height:14px;background:#3DFFC5;box-shadow:0 0 22px #3DFFC5;--d:12.7s;--w:-12.1s;--dx:15px;"></i>
+  <i class="np-bokeh" style="left:89.0%;width:14px;height:14px;background:#FF8A00;box-shadow:0 0 22px #FF8A00;--d:17.6s;--w:-0.8s;--dx:-20px;"></i>
+  <i class="np-bokeh" style="left:37.4%;width:12px;height:12px;background:#FF5BD1;box-shadow:0 0 20px #FF5BD1;--d:17.5s;--w:-7.0s;--dx:24px;"></i>
+  <i class="np-bokeh" style="left:3.8%;width:18px;height:18px;background:#00D9FF;box-shadow:0 0 26px #00D9FF;--d:15.0s;--w:-4.8s;--dx:-10px;"></i>
+  <i class="np-bokeh" style="left:22.9%;width:18px;height:18px;background:#FFD60A;box-shadow:0 0 26px #FFD60A;--d:13.8s;--w:-1.4s;--dx:-6px;"></i>
+  <i class="np-bokeh" style="left:15.6%;width:14px;height:14px;background:#FF2E93;box-shadow:0 0 22px #FF2E93;--d:16.3s;--w:-4.4s;--dx:21px;"></i>
+  <i class="np-bokeh" style="left:60.0%;width:10px;height:10px;background:#8B3DFF;box-shadow:0 0 18px #8B3DFF;--d:16.8s;--w:-9.2s;--dx:-31px;"></i>
+  <i class="np-bokeh" style="left:59.7%;width:12px;height:12px;background:#3DFFC5;box-shadow:0 0 20px #3DFFC5;--d:11.5s;--w:-6.2s;--dx:32px;"></i>
+  <i class="np-bokeh" style="left:42.1%;width:6px;height:6px;background:#FF8A00;box-shadow:0 0 14px #FF8A00;--d:17.8s;--w:-4.7s;--dx:23px;"></i>
+  <i class="np-bokeh" style="left:55.9%;width:12px;height:12px;background:#FF5BD1;box-shadow:0 0 20px #FF5BD1;--d:13.4s;--w:-15.0s;--dx:37px;"></i>
+  <!-- (5) สปอตไลต์มืด — แทนหน้าที่ของการ์ดที่เอาออก: กดพื้นหลังหลังข้อความให้มืดพอ (ไม่มีขอบ ไม่มีกรอบ) -->
+  <div class="np-spot"></div>
   <div class="intro-vignette"></div>
 
   <div style="position:relative;text-align:center;">
   <div class="intro-card">
-    <!-- (5) เส้นแสงวิ่งรอบขอบการ์ด = สถานะ "ระบบกำลังทำงาน" -->
-    <div class="dh-trace"></div>
-    <!-- (4) เรดาร์กวาดรอบโลโก้ + วงแหวนบอกระดับ = ระบบกำลังสแกนข้อมูล -->
-    <div class="dh-glow"></div>
-    <div class="dh-radar"></div>
-    <div class="dh-ring dh-ring--1"></div>
-    <div class="dh-ring dh-ring--2"></div>
+    <!-- v117: เอากรอบ/วงแหวนรอบโลโก้ออกทั้งหมดตามที่ขอ — เหลือแค่แสงเรืองสีรุ้งที่เบลอจนไม่มีขอบ -->
+    <div class="np-halo"></div>
     <div class="intro-logo" style="position:relative;z-index:1;width:115px;height:115px;margin:0 auto 26px;border-radius:31px;overflow:hidden;
       box-shadow:0 20px 54px -12px rgba(20,4,70,.78), 0 8px 24px -6px rgba(58,240,232,.62), 0 8px 24px -8px rgba(255,43,190,.38), inset 0 1px 0 rgba(255,255,255,.35);">
       <svg viewBox="0 0 48 48" style="position:absolute;inset:0;width:100%;height:100%;" role="img">
@@ -4813,7 +4843,12 @@ function metricInk(key){
   if (!METRIC_INK_CACHE) { try { refreshMetricInk(); } catch(e){ return 'var(--ink)'; } }
   const m = METRIC_INK_CACHE && METRIC_INK_CACHE[key];
   if (!m) return 'var(--ink)';
-  return (typeof state !== 'undefined' && state && state.theme === 'dark') ? m.dark : m.light;
+  // ★ v117 แก้บั๊ก: เดิมเช็ก state.theme === 'dark' ซึ่งเป็น "ความตั้งใจของผู้ใช้" ไม่ใช่ผลจริง
+  //   ตั้งแต่ v105 ค่าเริ่มต้นคือ 'auto' — เครื่องที่ตั้งโหมดมืดไว้จึงได้ "สีตัวอักษรของโหมดสว่าง"
+  //   (เข้มบนพื้นเข้ม) วัดได้ 1.41:1 แทบมองไม่เห็น ทั้งที่ควรได้ 8.91:1
+  //   ใช้คลาส .dark ที่ applyTheme() ใส่ไว้จริงบน <html> แทน — คือสิ่งที่ผู้ใช้เห็นอยู่จริงบนจอ
+  const isDark = !!(document.documentElement && document.documentElement.classList.contains('dark'));
+  return isDark ? m.dark : m.light;
 }
 
 // ── ลำดับตัวชี้วัดมาตรฐาน (v81) — ใช้ร่วมกันทุกจุดในระบบเพื่อไม่ให้ลำดับ/ชื่อเพี้ยนกัน ──
@@ -4833,7 +4868,20 @@ const ACCENT_THEMES = {
   // ★ v102: ทุกธีมระบุครบ 6 ตัวชี้วัด (a=ลูกค้า b=รถยนต์ c=จยย. d=เดลิเวอรี่ e=แท็กซี่ f=MRT)
   //   เดิมระบุแค่ 4 คู่ (a–d) ทำให้ "แท็กซี่" กับ "MRT" ค้างเป็นสีของพาเลตเก่าตลอดไป
   //   ไม่ว่าผู้ใช้จะสลับธีมไปแบบใด — ตอนนี้เปลี่ยนครบทั้ง 6 ตัวชี้วัดพร้อมกัน
-  harbor: { name:'Harbor (แนะนำ)', a1:'#0E5E80',a2:'#063F5C', b1:'#F0A31C',b2:'#B4740A', c1:'#17A398',c2:'#0B6C64', d1:'#E0663C',d2:'#A9401C', e1:'#7A5EA8',e2:'#4C3A73', f1:'#419EBD',f2:'#1F6E88' },
+  // ★ v117: ธีมใหม่ "Spectrum" — ค่าเริ่มต้นใหม่ ตามที่ขอให้แดชบอร์ดสีสันสดใสขึ้น
+  //   การ์ดหลักไล่ ชมพูราสเบอร์รี → ม่วงไฟฟ้า → ฟ้าอาซัวร์ (ทิศเดียวกับโลโก้แอป)
+  //   ★ เลือกเฉดจากการวัด ไม่ใช่เดา: ข้อความขาวขนาดเล็กบนการ์ดหลักต้อง ≥ 4.5:1
+  //     และต้องคิดรวม opacity .90 ที่ป้ายเล็กบนการ์ดหลักใช้อยู่ด้วย (ทำให้คอนทราสต์ลดลง ~10%)
+  //     รอบแรกเลือก #D6246F / #0A72C9 (ขาวทึบได้ 4.84 / 4.93) แต่วัดจากหน้าจอจริงแล้ว
+  //     ป้ายที่ opacity .90 ตกเหลือ 4.15 / 4.30 → เข้มขึ้นเล็กน้อยเป็น #C81E6A / #0968BA
+  //     ผลสุดท้าย (ขาว opacity .90): a1 = 4.65 · a2 = 5.09 · d1 = 4.91 — ผ่านทั้งสามจุด
+  //     (Harbor เดิม d1 #E0663C ได้แค่ 3.42 — ป้ายเล็กด้านขวาการ์ดหลักไม่ผ่าน AA มาตลอด)
+  //   ★ สีตัวชี้วัด 6 ตัวกระจายรอบวงล้อสีให้แยกกันชัด: ชมพู 335° · อำพัน 40° · มิ้นต์ 163°
+  //     · อาซัวร์ 207° · ม่วง 271° · เขียวมะนาว 93° (ไม่มีคู่ไหนห่างกันน้อยกว่า ~45°)
+  //   ★ ตั้งใจให้ "ไม่ซ้ำ" กับ 4 ธีมที่ผู้ใช้สั่งปิดไว้ (emerald/indigo/ocean/sunset):
+  //     ไม่มีธีมไหนในนั้นเริ่มที่ชมพูแล้วจบที่ฟ้า
+  spectrum:{ name:'Spectrum (สดใส)', a1:'#C81E6A',a2:'#7B2FF2', b1:'#FFAA00',b2:'#D97A00', c1:'#12C99A',c2:'#0A8F6E', d1:'#0968BA',d2:'#07539A', e1:'#A855F7',e2:'#7E22CE', f1:'#65C11A',f2:'#3F8A0A', sw:['#C81E6A','#7B2FF2','#0968BA'] },
+  harbor: { name:'Harbor', a1:'#0E5E80',a2:'#063F5C', b1:'#F0A31C',b2:'#B4740A', c1:'#17A398',c2:'#0B6C64', d1:'#E0663C',d2:'#A9401C', e1:'#7A5EA8',e2:'#4C3A73', f1:'#419EBD',f2:'#1F6E88' },
   emerald:{ name:'Emerald Gold',   a1:'#008960',a2:'#00553C', b1:'#EBB400',b2:'#9C7700', c1:'#2FA8A0',c2:'#136A64', d1:'#D2691E',d2:'#8E4413', e1:'#6E7BA8',e2:'#414B73', f1:'#4CA3C4',f2:'#256E8B' },
   sorbet: { name:'Sunrise Sorbet', a1:'#F2606C',a2:'#B8324A', b1:'#F0B03A',b2:'#B07C10', c1:'#35BE86',c2:'#0C7A52', d1:'#F5854E',d2:'#C25A22', e1:'#DE6BA4',e2:'#A93370', f1:'#22AFA9',f2:'#0A6E6A' },
   neon:   { name:'Neon',   a1:'#58D4F9',a2:'#0C1433', b1:'#F9373B',b2:'#C4192F', c1:'#FBBF24',c2:'#D97706', d1:'#F472B6',d2:'#DB2777', e1:'#A78BFA',e2:'#6D28D9', f1:'#2DD4BF',f2:'#0F766E' },
@@ -4896,7 +4944,7 @@ function resolveAccentTheme(key){
   // v113: ธีมที่ปิดอยู่ให้คืนธีมเริ่มต้นแทน (กันหลุดผ่านเส้นทางอื่น)
   return (isAccentThemeEnabled(key) ? ACCENT_THEMES[key] : null) || ACCENT_THEMES[DEFAULT_ACCENT];
 }
-const DEFAULT_ACCENT = 'harbor';
+const DEFAULT_ACCENT = 'spectrum';   // v117: เดิม 'harbor' — เปลี่ยนตามคำขอให้แดชบอร์ดสีสันสดใสขึ้น
 
 // ═══════════════════════════════════════════════════════════════
 // v113 — ธีมที่ปิดใช้งาน (ซ่อนจากตัวเลือก แต่ไม่ลบนิยามทิ้ง)
@@ -5118,10 +5166,13 @@ function themeSwatchesHtml(){
     // และเพิ่ม aria-label/aria-pressed ให้ screen reader อ่านออกว่ากำลังเลือกธีมใด
     // ★ v104: ธีมไดนามิก ('สีประจำวัน') ต้อง resolve ก่อน ไม่งั้นสวอตช์จะโชว์ placeholder
     const tt = (key === 'daily') ? buildDailyTheme() : t;
+    // ★ v117: ธีมที่ระบุ sw (สีสวอตช์) เองจะใช้ค่านั้น — Spectrum ใช้สีเดียวกับการ์ดหลัก
+    //   (ชมพู→ม่วง→ฟ้า) เพราะสูตรกลาง a1→f1→b1 ให้ ชมพู→เขียวมะนาว→อำพัน ซึ่งดูเป็นสีขุ่น ไม่สื่อธีม
+    const swStops = Array.isArray(tt.sw) && tt.sw.length >= 3 ? tt.sw : [tt.a1, tt.f1 || tt.c1, tt.b1];
     const ring = (key === 'daily') ? 'box-shadow:inset 0 0 0 1.5px rgba(255,255,255,.75);' : '';
     return `<button data-theme="${esc(key)}" class="theme-swatch ${active}" type="button"
       title="ธีมสี ${esc(tt.name)}" aria-label="ธีมสี ${esc(tt.name)}" aria-pressed="${active ? 'true' : 'false'}"
-      style="background:linear-gradient(135deg,${tt.a1} 0%,${tt.f1 || tt.c1} 55%,${tt.b1} 100%);${ring}"></button>`;
+      style="background:linear-gradient(135deg,${swStops[0]} 0%,${swStops[1]} 55%,${swStops[2]} 100%);${ring}"></button>`;
   }).join('');
 }
 
@@ -5764,7 +5815,7 @@ function kpiCardHTML(cfg){
   }
   const subHTML = cfg.sub ? `<span class="text-[11px]" style="color:var(--ink-soft);">${deltaHTML?'· ':''}${cfg.sub}</span>` : '';
   return `
-  <div class="card kpi-card rounded-2xl p-4 sm:p-5" style="background:linear-gradient(135deg, color-mix(in srgb, ${from} 24%, var(--bg-elev)) 0%, color-mix(in srgb, ${to} 14%, var(--bg-elev)) 100%); border-color:${borderMix};">
+  <div class="card kpi-card rounded-2xl p-4 sm:p-5" style="background:linear-gradient(135deg, color-mix(in srgb, ${from} var(--kpi-mix-a,24%), var(--bg-elev)) 0%, color-mix(in srgb, ${to} var(--kpi-mix-b,14%), var(--bg-elev)) 100%); border-color:${borderMix};">
     <div class="flex items-start justify-between mb-3">
       <span class="text-xs font-medium" style="color:var(--ink-soft);">${cfg.label}</span>
       <div class="w-9 h-9 rounded-xl flex items-center justify-center shrink-0" style="background:${chipFallback}; background:${chipMix}; color:${c};">${cfg.icon}</div>
@@ -6088,11 +6139,21 @@ const valueLabelsPlugin = {
           ctx.textAlign = 'center';
           // เขียนขอบขาวรอบตัวอักษรก่อน (halo) แล้วค่อยเติมสีทับ — กันตัวเลขกลืนกับพื้นที่แรเงาสีเดียวกัน
           // ใต้เส้น หรือกลืนกับพื้นหลังโหมดมืด ทำให้เด่นชัดขึ้นในทุกสถานการณ์โดยไม่ต้องเปลี่ยนสีตามธีม
-          ctx.lineWidth = 3;
-          ctx.strokeStyle = 'rgba(255,255,255,.9)';
+          // ★ v117 แก้: เดิมขอบ (halo) เป็นสีขาวตายตัว และตัวเลขใช้สีเส้นกราฟดิบ
+          //   ในโหมดมืดจึงกลายเป็น "ตัวหนังสือสีเข้มขอบขาว" บนพื้นเข้ม ดูเลอะและอ่านยาก
+          //   (สีเส้นดิบอย่าง #D6246F บนพื้นการ์ดมืดได้คอนทราสต์ไม่ถึงเกณฑ์)
+          //   ตอนนี้: ขอบ = สีพื้นการ์ดของโหมดนั้นจริง · ตัวเลข = ensureContrast() ให้ผ่าน AA ทั้งสองโหมด
+          const isDarkMode = document.documentElement.classList.contains('dark');
+          const lineColor = (typeof ds.borderColor === 'string' && ds.borderColor) || '#333333';
+          let labelFill = lineColor;
+          try { if (lineColor[0] === '#') labelFill = ensureContrast(lineColor, isDarkMode); } catch(err){}
+          const haloColor = (getComputedStyle(document.documentElement).getPropertyValue('--bg-elev') || '').trim()
+                            || (isDarkMode ? '#0B2634' : '#FFFFFF');
+          ctx.lineWidth = 3.5;
+          ctx.strokeStyle = haloColor;
           ctx.lineJoin = 'round';
           ctx.strokeText(text, x, y);
-          ctx.fillStyle = (typeof ds.borderColor === 'string' && ds.borderColor) || '#333';
+          ctx.fillStyle = labelFill;
           ctx.fillText(text, x, y);
         });
       });
@@ -10805,7 +10866,6 @@ function initNav(){
   bindBgFx();
   applyBgFx(state.bgFx, false);
   initBgFxParallax();   // v115: พื้นหลังขยับตามเมาส์/การเลื่อนหน้า
-  initIntroChart();     // v116: วัดความยาวเส้นกราฟอินโทรจากของจริง
   // สลับแสดง/ซ่อนตัวเลขกำกับจุดบนกราฟเส้นแนวโน้ม — จำค่าไว้ให้ใช้ครั้งหน้าด้วย
   document.getElementById('toggleLabelsMonthly').addEventListener('change', (e)=>{
     state.chartLabels.monthly = e.target.checked;
@@ -10875,6 +10935,19 @@ function loadSavedPreferences(){
     if (!localStorage.getItem(PALETTE_MIGRATION)){
       try { localStorage.setItem(PALETTE_MIGRATION, '1'); } catch(e){}
       if (!savedAccent || savedAccent === 'sorbet' || savedAccent === 'neon'){
+        savedAccent = DEFAULT_ACCENT;
+        try { localStorage.setItem('sbk_accent_theme', DEFAULT_ACCENT); } catch(e){}
+      }
+    }
+    // ★ v117: ย้ายเครื่องที่ยังใช้ Harbor (ค่าเริ่มต้นเดิม) มาเป็น Spectrum "ครั้งเดียว"
+    //   เหตุผล: Harbor เป็นค่าเริ่มต้นมาตั้งแต่ v102 เครื่องเกือบทุกเครื่องจึงมีค่า 'harbor' ค้างอยู่
+    //   ถ้าไม่ย้าย ผู้ใช้เปิดมาจะเห็นสีเดิมทุกประการ และนึกว่าไม่ได้แก้อะไร
+    //   ★ ย้ายเฉพาะ 'harbor' และเครื่องที่ไม่เคยตั้งค่า — ใครเลือก Sorbet/Neon/Forest/สีประจำวัน
+    //     ไว้เองจะไม่ถูกแตะ และหลังย้ายแล้ว ถ้าผู้ใช้กดกลับไป Harbor ก็จะจำตามปกติ (มีตัวจำว่าย้ายแล้ว)
+    const PALETTE_MIGRATION_117 = 'sbk_palette_v117';
+    if (!localStorage.getItem(PALETTE_MIGRATION_117)){
+      try { localStorage.setItem(PALETTE_MIGRATION_117, '1'); } catch(e){}
+      if (!savedAccent || savedAccent === 'harbor'){
         savedAccent = DEFAULT_ACCENT;
         try { localStorage.setItem('sbk_accent_theme', DEFAULT_ACCENT); } catch(e){}
       }
@@ -11004,35 +11077,6 @@ function stopIntroClock(){
 //     เมื่อไม่มีคนดู (จอในพื้นที่ทำงาน/พื้นที่ส่วนกลาง) ถ้าเข้าเองหลังไม่กี่วินาที
 //     ข้อมูลก็จะกลับมาแสดงทั้งที่ยังไม่มีคนอยู่ตรงนั้น ซึ่งขัดกับสิ่งที่ต้องการ
 // ═══════════════════════════════════════════════════════════════
-// ═══════════════════════════════════════════════════════════════
-// v116 — เส้นกราฟหน้า Welcome: ตั้งค่า --dh-len จากความยาวเส้นจริง
-// ───────────────────────────────────────────────────────────────
-// ★ ทำไมต้องวัด ไม่ใช่ใส่ตัวเลขเอง:
-//   แอนิเมชันวาดเส้นทำงานด้วย stroke-dasharray/dashoffset ซึ่งอ้างอิง
-//   "ความยาวเส้นจริง" ของ path ถ้าใส่ค่ามั่ว เส้นจะวาดไม่เต็ม (ค่าน้อยไป)
-//   หรือค้างว่างตอนต้น (ค่ามากไป) และหัวเส้นเรืองแสงจะวิ่งไม่ตรงกับปลายเส้นที่กำลังวาด
-//   getTotalLength() ให้ค่าจริงจากเบราว์เซอร์ ได้ผลถูกต้องทุกครั้งแม้แก้พิกัด path ภายหลัง
-// ★ เรียกครั้งเดียวตอนโหลด — ค่านี้ไม่เปลี่ยนตามขนาดจอ เพราะวัดในระบบพิกัดของ viewBox
-//   (SVG ยืดด้วย preserveAspectRatio="none" แต่ความยาวในพิกัด user space คงเดิม)
-// ═══════════════════════════════════════════════════════════════
-function initIntroChart(){
-  try {
-    const path = document.getElementById('dhLinePath');
-    const svg  = document.querySelector('.dh-chart');
-    if (!path || !svg || typeof path.getTotalLength !== 'function') return;
-    const len = path.getTotalLength();
-    if (!isFinite(len) || len <= 0) return;
-    svg.style.setProperty('--dh-len', Math.ceil(len) + 'px');
-  } catch(e){
-    // เบราว์เซอร์ที่วัดไม่ได้: ปล่อยให้เส้นแสดงแบบเต็มเส้นนิ่งๆ ดีกว่าค้างเป็นเส้นว่าง
-    try {
-      const svg = document.querySelector('.dh-chart');
-      if (svg) svg.style.setProperty('--dh-len', '0px');
-    } catch(e2){}
-    console.warn('วัดความยาวเส้นกราฟอินโทรไม่สำเร็จ:', e);
-  }
-}
-
 /** v116: ตัวนับถอยหลังจริง — อ่านจากตัวจับเวลาเดียวกับที่พาเข้าแดชบอร์ด ไม่ใช่ข้อความหลอก */
 function updateIntroCountdown(){
   const el = document.getElementById('introCountdown');
@@ -11085,6 +11129,11 @@ function showWelcome(firstLoad){
 
   const el2 = document.getElementById('introSplash');
   el2.classList.toggle('intro-idle', !autoEnter);   // สลับชุดเอฟเฟกต์ตามโหมด
+  // ★ v117: ลำแสงพุ่งเร็ว ("จุดระเบิด") เฉพาะ 1.6 วินาทีแรกของการเปิดโปรแกรม แล้วผ่อนเป็นจังหวะปกติ
+  //   โหมดพักหน้าจอไม่ระเบิด — จอค้างทั้งวัน ไม่ควรมีอะไรพุ่งใส่คนที่เดินผ่าน
+  clearTimeout(window.__npBurstTimer);
+  el2.classList.toggle('np-burst', autoEnter);
+  if (autoEnter) window.__npBurstTimer = setTimeout(()=>el2.classList.remove('np-burst'), 1600);
 
   if (autoEnter){
     // ── โหมดเปิดครั้งแรก: แถบความคืบหน้าวิ่ง 0 → 100% ตามเวลาจริง ──
@@ -11095,7 +11144,7 @@ function showWelcome(firstLoad){
       if (bar){
         bar.style.transition = 'none';
         bar.style.width = '0%';
-        bar.style.background = 'linear-gradient(90deg,#5AF2DC,#8CEBFF 45%,#FF6FD8)';   // v116: ชุดสี Data Horizon
+        bar.style.background = '';   // v117: ล้างค่าสีที่ JS เคยเขียนทับ ให้ CSS สีรุ้งไหล (.intro-progress) คุมแทน
         // บังคับให้เบราว์เซอร์คำนวณ layout ก่อน เพื่อให้ transition ทำงาน (ไม่งั้นจะกระโดดไป 100% ทันที)
         void bar.offsetWidth;
         bar.style.transition = `width ${duration}ms linear`;
