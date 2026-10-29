@@ -1,6 +1,31 @@
 <!DOCTYPE html>
 <!--
   ระบบวิเคราะห์ยอดลูกค้า-ยอดรถยนต์ · เวอร์ชัน v113
+  v118 — ลูกเล่นพื้นหลังแดชบอร์ดเพิ่ม 3 ชั้น · นำธีม Forest และสีประจำวันออก
+
+  ■ 1) ลูกเล่นพื้นหลังใหม่ (อยู่ใน #bgFx ทั้งหมด → อยู่หลังการ์ดเสมอ · สวิตช์ "เอฟเฟกต์พื้นหลัง" คุมทั้งหมด)
+     • โครงข่ายจุดเชื่อมโยง (canvas) — จุดแสงสีธีมลอยช้าๆ ใกล้กันมีเส้นโยง = ภาพ "ข้อมูลที่เชื่อมกัน"
+       ขยับเมาส์ผ่าน: จุดใกล้ๆ หลบ และมีเส้นโยงมาหาเมาส์ · สลับธีมแล้วสีตามเอง
+       ★ ชั้นเดียวที่ใช้ CPU จึงคุมเข้ม: 30 เฟรม/วินาที · จุดตามพื้นที่จอ (สูงสุด 64 / มือถือ 26)
+         · dpr ≤ 1.5 · ไม่ใช้ shadowBlur · วาดหนึ่งเฟรม ~0.3ms
+         · หยุดสนิทเมื่อ ปิดเอฟเฟกต์ / แท็บซ่อน / หน้า Welcome บัง · ลดการเคลื่อนไหว = ภาพนิ่งครั้งเดียว
+     • ริบบิ้นออโรร่า 2 สาย — แถบไล่สีของธีมโค้ง/เลื่อน/ยืดช้าๆ (transform ล้วน)
+     • ดาวตก 3 ดวง — นานๆ ครั้ง (รอบ 14/19/23 วินาที เห็นจริงราว 1 วินาที) พาดผ่านครึ่งบนของจอ
+
+  ■ 2) นำธีมออก 2 ธีม: Forest (สีเขียว) และ สีประจำวัน (วันนี้ขึ้นชื่อ "สีประจำวันพฤหัสบดี")
+     ใช้กลไกเดียวกับ v113 (DISABLED_ACCENT_THEMES) — เครื่องที่ค้างสองธีมนี้ถอยไป Spectrum เอง
+     สวอตช์เหลือ 4: Spectrum · Harbor · Sunrise Sorbet · Neon
+     ★ ไม่กระทบสีประจำวันที่แต้มวันที่ในตาราง (thaiDayColor) — อันนั้นคือการแสดงข้อมูล ไม่ใช่ธีม
+
+  ■ 3) บั๊กที่ชุดทดสอบจับได้และแก้แล้ว
+     • เครื่องที่ตั้ง "ลดการเคลื่อนไหว": โครงข่ายจุดไม่ขยับก็จริง แต่ลูปยังวาดซ้ำ 30 ครั้ง/วินาทีตลอด
+       สาเหตุ: applyBgFx() ถูกเรียกก่อน initBgFxNetwork() จึงเริ่มลูปก่อนรู้ค่าการตั้งค่า
+       → ให้รอ init เสร็จก่อนเสมอ (bgNet.inited)
+     • ข้อความรองบนพื้นหลัง (คำบรรยายหัวหน้า/บรรทัดข้อมูลปี) โหมดสว่างตกเหลือ 3.22:1
+       แยกหาสาเหตุทีละชั้น: ริบบิ้นใหม่เป็นตัวหลัก ก้อนแสงเดิมรองลงมา โครงข่ายจุดแทบไม่มีผล
+       ต้นเหตุจริง: --ink-soft #4A6B7E มีที่เผื่อน้อยตั้งแต่ต้น (พื้นเรียบได้แค่ 5.3:1)
+       → --ink-soft โหมดสว่างเป็น #36505F + ลดความทึบริบบิ้นโหมดสว่าง → ต่ำสุด 5.27:1
+
   v117 — หน้า Welcome ใหม่ "Neon Prism" (สีสันสดใส · ไม่มีกรอบ) · แดชบอร์ดธีม Spectrum ทั้งสองโหมด
 
   ■ 1) หน้า Welcome: เอากรอบออก เหลือแค่โลโก้ + ตัวหนังสือ (ตามภาพที่วงไว้)
@@ -2450,7 +2475,13 @@
        Sky Blue และ Golden Amber สว่างเกินกว่าจะใช้เป็นสีตัวอักษรบนพื้นขาวได้ (คอนทราสต์ 2.4 / 1.9)
        ตอนนี้สีตัวอักษรถูก "คำนวณอัตโนมัติ" ให้ผ่าน WCAG AA ทุกธีม (ดู ensureContrast()) */
   --bg:#F4F8FB; --bg-elev:#FFFFFF; --bg-elev-2:#E9F1F7;
-  --ink:#0A2A3C; --ink-soft:#4A6B7E; --line:#D7E5EE;
+  /* ★ v118: --ink-soft โหมดสว่าง #4A6B7E → #36505F
+     ข้อความรองที่วางบนพื้นหลังตรงๆ (หัวหน้า คำบรรยาย บรรทัดข้อมูลปี) ไม่มีการ์ดรองรับ
+     พอพื้นหลังมีชั้นเคลื่อนไหวเพิ่ม วัดจุดแย่สุดได้เหลือ 3.22:1 (ต้อง ≥ 4.5)
+     แยกหาสาเหตุทีละชั้นแล้ว: ริบบิ้นออโรร่าใหม่เป็นตัวหลัก ก้อนแสงเดิมรองลงมา โครงข่ายจุดแทบไม่มีผล
+     แต่ต้นเหตุจริงคือ #4A6B7E มีที่เผื่อน้อยมากตั้งแต่ต้น (บนพื้นเรียบได้แค่ 5.3:1)
+     ค่าใหม่บนพื้นขาวได้ 8.5:1 และบนจุดแย่สุดของพื้นหลังเคลื่อนไหว ≥ 4.8:1 */
+  --ink:#0A2A3C; --ink-soft:#36505F; --line:#D7E5EE;
   --gate-a1:#0E5E80; --gate-a2:#063F5C; /* ลูกค้า — Deep Teal Blue (สีแบรนด์หลัก) */
   --gate-b1:#F0A31C; --gate-b2:#B4740A; /* รถยนต์ — Golden Amber */
   --gate-c1:#17A398; --gate-c2:#0B6C64; /* จยย. — เทียล (เชื่อมระหว่างน้ำเงินกับเขียว) */
@@ -2833,6 +2864,63 @@ html.dark .bgfx-sheen{opacity:.16;}
   #bgFx{transform:none !important;}
 }
 @media (max-width:640px){ .bgfx-sheen{display:none;} }
+/* ══════════════════════════════════════════════════════════════════
+   v118 — ลูกเล่นพื้นหลังแดชบอร์ดเพิ่ม 3 ชั้น (อยู่ใน #bgFx ทั้งหมด จึงอยู่หลังการ์ดเสมอ)
+   ══════════════════════════════════════════════════════════════════ */
+/* (1) โครงข่ายจุดเชื่อมโยง — วาดบน canvas ด้วย JS (ดู initBgFxNetwork) */
+.bgfx-net{position:absolute;inset:0;width:100%;height:100%;display:block;}
+
+/* (2) ริบบิ้นออโรร่าพลิ้วไหว — แถบสีไล่เฉดของธีม ค่อยๆ โค้ง/เลื่อน/ยืด
+   ★ ใช้ transform ล้วน (skew/translate/scale) ไม่ morph รูปทรง path ซึ่งต้องคำนวณใหม่ทุกเฟรม */
+.bgfx-ribbon{position:absolute;left:-25%;width:150%;height:26vh;border-radius:50%;
+  pointer-events:none;filter:blur(38px);will-change:transform,opacity;opacity:.12;}  /* โหมดสว่าง .16→.12: ลดผลต่อข้อความรองบนพื้นหลัง */
+html.dark .bgfx-ribbon{opacity:.26;}
+.bgfx-ribbon--1{top:6vh;
+  background:linear-gradient(90deg, transparent 4%, var(--gate-a1) 26%, var(--gate-a2) 52%, var(--gate-d1) 76%, transparent 96%);
+  animation:bgfxRibbon1 26s ease-in-out infinite alternate;}
+.bgfx-ribbon--2{top:58vh;height:22vh;
+  background:linear-gradient(90deg, transparent 4%, var(--gate-c1) 28%, var(--gate-f1) 54%, var(--gate-b1) 78%, transparent 96%);
+  animation:bgfxRibbon2 32s ease-in-out infinite alternate;}
+@keyframes bgfxRibbon1{
+  0%  {transform:translate3d(-6vw,0,0)   skewY(-6deg) scaleY(.75);}
+  50% {transform:translate3d(3vw,4vh,0)  skewY(3deg)  scaleY(1.15);}
+  100%{transform:translate3d(8vw,-2vh,0) skewY(-2deg) scaleY(.9);}
+}
+@keyframes bgfxRibbon2{
+  0%  {transform:translate3d(7vw,0,0)    skewY(5deg)  scaleY(.8);}
+  50% {transform:translate3d(-4vw,-5vh,0) skewY(-4deg) scaleY(1.2);}
+  100%{transform:translate3d(-9vw,2vh,0) skewY(2deg)  scaleY(.85);}
+}
+
+/* (3) ดาวตก — นานๆ ครั้งพาดผ่านครึ่งบนของจอ (ลูกเล่นเล็กๆ ให้หน้าจอดูมีชีวิต)
+   ★ คีย์เฟรมยาว 14–23 วินาที แต่เคลื่อนจริงแค่ช่วงท้าย ~6% (≈1 วินาที)
+     ช่วงที่เหลือซ่อนอยู่ — ความ "นานๆ ครั้ง" นี่แหละที่ทำให้เป็นลูกเล่น ไม่ใช่สิ่งรบกวน */
+.bgfx-star{position:absolute;width:180px;height:2px;border-radius:2px;opacity:0;pointer-events:none;
+  background:linear-gradient(90deg, transparent, color-mix(in srgb, var(--gate-a1) 70%, #fff), #fff);
+  box-shadow:0 0 10px 1px color-mix(in srgb, var(--gate-a1) 60%, transparent);
+  transform-origin:100% 50%;will-change:transform,opacity;}
+.bgfx-star::after{content:'';position:absolute;right:-3px;top:-3px;width:8px;height:8px;border-radius:50%;
+  background:#fff;box-shadow:0 0 12px 3px rgba(255,255,255,.9);}
+.bgfx-star--1{top:9vh; left:58vw;animation:bgfxStar 14s linear 3s infinite;}
+.bgfx-star--2{top:22vh;left:24vw;animation:bgfxStar 19s linear 9s infinite;}
+.bgfx-star--3{top:4vh; left:82vw;animation:bgfxStar 23s linear 15s infinite;}
+@keyframes bgfxStar{
+  0%,92%{transform:translate3d(0,0,0) rotate(-24deg) scaleX(.2); opacity:0;}
+  93%   {opacity:1;}
+  99%   {opacity:.9;}
+  100%  {transform:translate3d(-32vw,15vw,0) rotate(-24deg) scaleX(1); opacity:0;}
+}
+html:not(.dark) .bgfx-star{filter:saturate(1.3);}
+/* โหมดหยุด/ลดการเคลื่อนไหว/แท็บซ่อน — ต่อกับกลไกเดิมของ #bgFx */
+#bgFx.bgfx-paused .bgfx-ribbon,#bgFx.bgfx-paused .bgfx-star{animation-play-state:paused;}
+@media (prefers-reduced-motion: reduce){
+  .bgfx-ribbon{animation:none !important;}
+  .bgfx-star{animation:none !important;display:none;}
+}
+@media (max-width:640px){
+  .bgfx-ribbon{filter:blur(28px);}
+  .bgfx-star--3{display:none;}
+}
 /* สวิตช์เปิด/ปิดเอฟเฟกต์ในแผงตั้งค่า */
 .bgfx-toggle{display:flex;align-items:center;gap:.6rem;width:100%;padding:.5rem .65rem;border-radius:.7rem;
   border:1px solid var(--line);background:var(--bg-elev);cursor:pointer;transition:all .18s ease;}
@@ -3359,6 +3447,13 @@ main .card{max-width:100%;}
   <div class="bgfx-orb bgfx-o4"></div>
   <div class="bgfx-orb bgfx-o5"></div>
   <div class="bgfx-sheen"></div>
+  <!-- v118: ริบบิ้นออโรร่า 2 สาย · ดาวตก 3 ดวง · โครงข่ายจุดเชื่อมโยง (canvas อยู่บนสุดของชั้นพื้นหลัง) -->
+  <div class="bgfx-ribbon bgfx-ribbon--1"></div>
+  <div class="bgfx-ribbon bgfx-ribbon--2"></div>
+  <i class="bgfx-star bgfx-star--1"></i>
+  <i class="bgfx-star bgfx-star--2"></i>
+  <i class="bgfx-star bgfx-star--3"></i>
+  <canvas class="bgfx-net" id="bgFxNet"></canvas>
 </div>
 
 <!-- ===== Intro / Splash Screen ===== -->
@@ -4962,7 +5057,12 @@ const DEFAULT_ACCENT = 'spectrum';   // v117: เดิม 'harbor' — เป�
 // ★ ปิดที่จุดเดียวนี้ มีผลทั้งรายการสวอตช์ · การตรวจสอบตอนโหลดค่าที่บันทึกไว้
 //   · และ applyAccentTheme() ที่จะถอยไปธีมเริ่มต้นถ้าถูกเรียกด้วยคีย์ที่ปิดอยู่
 // ═══════════════════════════════════════════════════════════════
-const DISABLED_ACCENT_THEMES = ['emerald', 'indigo', 'ocean', 'sunset'];
+// ★ v118: ปิดเพิ่มอีก 2 ธีมตามที่ขอ — 'forest' (Forest สีเขียว) และ 'daily' (สีประจำวัน
+//   ซึ่งวันนี้แสดงชื่อ "สีประจำวันพฤหัสบดี") ใช้กลไกเดียวกับ v113: ไม่ลบนิยามทิ้ง
+//   เครื่องที่ค้างสองธีมนี้ไว้จะถอยไป Spectrum เองและถูกเขียนค่าใหม่ทับ
+//   ★ ปิดธีม 'daily' ไม่กระทบ "สีประจำวันของไทย" ที่ใช้แต้มสีวันที่ในตาราง (thaiDayColor) —
+//     อันนั้นเป็นการแสดงข้อมูล ไม่ใช่ธีมสีของแอป จึงยังทำงานเหมือนเดิม
+const DISABLED_ACCENT_THEMES = ['emerald', 'indigo', 'ocean', 'sunset', 'forest', 'daily'];
 
 /** ธีมนี้ยังให้ผู้ใช้เลือกได้อยู่หรือไม่ */
 function isAccentThemeEnabled(key){
@@ -4991,6 +5091,8 @@ function applyBgFx(on, persist){
     // v115: ปิดเอฟเฟกต์แล้วต้องคืนพารัลแลกซ์กลับศูนย์ด้วย ไม่งั้นพอเปิดใหม่จะค้างเอียงไว้
     //   ต้องรีเซ็ตผ่าน bgFxResetParallax() เพราะลูป rAF อาจยังวิ่งค้างและจะเขียนค่าเก่าทับ
     if (!state.bgFx) bgFxResetParallax();
+    // v118: ปิดเอฟเฟกต์ = หยุดลูปวาดโครงข่ายจริง ไม่ใช่แค่ทำให้มองไม่เห็นแต่ยังคำนวณอยู่
+    try { if (state.bgFx) bgNetStart(); else bgNetStop(); } catch(e){}
   }
   document.querySelectorAll('.bgfx-toggle').forEach(btn=>{
     btn.setAttribute('aria-pressed', state.bgFx ? 'true' : 'false');
@@ -5107,6 +5209,155 @@ function initBgFxParallax(){
 
   // กลับมาที่ศูนย์กลางเมื่อเมาส์ออกนอกหน้าต่าง ไม่ค้างเอียงอยู่ข้างเดียว
   window.addEventListener('blur', ()=>{ mouseX = 0; mouseY = 0; kick(); });
+}
+
+// ═══════════════════════════════════════════════════════════════
+// v118 — โครงข่ายจุดเชื่อมโยงบนพื้นหลังแดชบอร์ด (canvas)
+// ───────────────────────────────────────────────────────────────
+// จุดแสงสีธีมลอยช้าๆ เมื่อเข้าใกล้กันจะมีเส้นบางๆ โยงถึงกัน — ภาพ "ข้อมูลที่เชื่อมโยงกัน"
+// ซึ่งเข้ากับเนื้อหาของระบบวิเคราะห์ และเมื่อขยับเมาส์ผ่าน จุดใกล้ๆ จะหลบและโยงเส้นมาหาเมาส์
+// ★ เป็นชั้นเดียวที่ใช้ CPU (ชั้นอื่นเป็น CSS ล้วน) จึงคุมภาระอย่างเข้ม:
+//   1. วาด 30 เฟรม/วินาที ไม่ใช่ 60 — ของที่ลอยช้าขนาดนี้ตาแยกไม่ออก แต่ภาระลดครึ่ง
+//   2. จำนวนจุดคิดตามพื้นที่จอ (สูงสุด 64 / มือถือ 26) — เส้นเชื่อมคำนวณแบบจับคู่ ~2,000 คู่/เฟรม
+//   3. ความละเอียด canvas จำกัดที่ devicePixelRatio 1.5 — จอ 4K ไม่ต้องวาดพิกเซลเกินจำเป็น
+//   4. ไม่ใช้ shadowBlur (แพงมากบน canvas) — แสงเรืองใช้วงกลมโปร่งแสงซ้อนแทน
+//   5. หยุดวาดสนิทเมื่อ: ปิดเอฟเฟกต์ · แท็บถูกซ่อน · หน้า Welcome บังอยู่ · ระบบขอลดการเคลื่อนไหว
+//      (ลดการเคลื่อนไหว = วาดภาพนิ่งครั้งเดียว ยังเห็นโครงข่ายแต่ไม่ขยับ)
+//   6. อ่านสีธีมจากตัวแปร CSS ทุก 1 วินาที — สลับธีมแล้วสีตามเองโดยไม่ต้องผูก event เพิ่ม
+// ═══════════════════════════════════════════════════════════════
+const bgNet = { inited:false, running:false, timer:null, raf:null, pts:[], w:0, h:0, dpr:1,
+                mx:-9999, my:-9999, colors:['#888'], lastColorRead:0, lastFrame:0, reduced:false };
+
+function bgNetReadColors(){
+  const cs = getComputedStyle(document.documentElement);
+  const pick = n => (cs.getPropertyValue(n) || '').trim();
+  const c = ['--gate-a1','--gate-a2','--gate-d1','--gate-c1','--gate-b1'].map(pick).filter(Boolean);
+  bgNet.colors = c.length ? c : ['#888888'];
+  bgNet.lastColorRead = performance.now();
+}
+function bgNetHexA(hex, a){
+  // แปลง #RRGGBB → rgba() พร้อมค่าโปร่งใส (canvas ไม่รับ color-mix)
+  const m = /^#?([0-9a-f]{6})$/i.exec(hex || '');
+  if (!m) return `rgba(136,136,136,${a})`;
+  const n = parseInt(m[1],16);
+  return `rgba(${(n>>16)&255},${(n>>8)&255},${n&255},${a})`;
+}
+function bgNetResize(){
+  const cv = document.getElementById('bgFxNet');
+  if (!cv) return;
+  bgNet.dpr = Math.min(window.devicePixelRatio || 1, 1.5);
+  bgNet.w = window.innerWidth; bgNet.h = window.innerHeight;
+  cv.width = Math.round(bgNet.w * bgNet.dpr); cv.height = Math.round(bgNet.h * bgNet.dpr);
+  const small = bgNet.w < 640;
+  const target = Math.max(14, Math.min(small ? 26 : 64, Math.round(bgNet.w * bgNet.h / 26000)));
+  // คงจุดเดิมไว้เท่าที่ทำได้ ไม่สุ่มใหม่ทั้งหมดทุกครั้งที่ปรับขนาดหน้าต่าง (ภาพจะกระตุก)
+  while (bgNet.pts.length < target){
+    bgNet.pts.push({ x:Math.random()*bgNet.w, y:Math.random()*bgNet.h,
+      vx:(Math.random()-.5)*.32, vy:(Math.random()-.5)*.32,
+      r:1.2+Math.random()*1.8, c:Math.floor(Math.random()*5), ph:Math.random()*Math.PI*2 });
+  }
+  bgNet.pts.length = target;
+  bgNet.pts.forEach(p=>{ p.x = Math.min(p.x, bgNet.w); p.y = Math.min(p.y, bgNet.h); });
+}
+function bgNetDraw(t){
+  const cv = document.getElementById('bgFxNet');
+  if (!cv) return;
+  const ctx = cv.getContext('2d');
+  if (!ctx) return;
+  if (!bgNet.lastColorRead || t - bgNet.lastColorRead > 1000) bgNetReadColors();
+  const dark = document.documentElement.classList.contains('dark');
+  const dotA = dark ? .85 : .55, lineA = dark ? .30 : .20, link = Math.min(170, Math.max(110, bgNet.w/10));
+  ctx.setTransform(bgNet.dpr,0,0,bgNet.dpr,0,0);
+  ctx.clearRect(0,0,bgNet.w,bgNet.h);
+  const P = bgNet.pts, n = P.length, cols = bgNet.colors;
+  // เคลื่อนที่ + หลบเมาส์
+  if (!bgNet.reduced){
+    for (const p of P){
+      const dx = p.x - bgNet.mx, dy = p.y - bgNet.my, d2 = dx*dx + dy*dy;
+      if (d2 < 140*140 && d2 > 1){ const f = (1 - Math.sqrt(d2)/140) * .6; p.x += dx/Math.sqrt(d2)*f; p.y += dy/Math.sqrt(d2)*f; }
+      p.x += p.vx; p.y += p.vy;
+      if (p.x < -20) p.x = bgNet.w + 20; else if (p.x > bgNet.w + 20) p.x = -20;
+      if (p.y < -20) p.y = bgNet.h + 20; else if (p.y > bgNet.h + 20) p.y = -20;
+    }
+  }
+  // เส้นเชื่อม: ยิ่งใกล้ยิ่งชัด
+  ctx.lineWidth = 1;
+  for (let i=0;i<n;i++){
+    const a = P[i];
+    for (let j=i+1;j<n;j++){
+      const b = P[j], dx = a.x-b.x, dy = a.y-b.y, d2 = dx*dx+dy*dy;
+      if (d2 > link*link) continue;
+      ctx.strokeStyle = bgNetHexA(cols[a.c % cols.length], lineA * (1 - Math.sqrt(d2)/link));
+      ctx.beginPath(); ctx.moveTo(a.x,a.y); ctx.lineTo(b.x,b.y); ctx.stroke();
+    }
+    // เส้นโยงไปหาเมาส์ — ลูกเล่นตอบสนองผู้ใช้
+    const mdx = a.x-bgNet.mx, mdy = a.y-bgNet.my, md2 = mdx*mdx+mdy*mdy, ml = link*1.15;
+    if (md2 < ml*ml){
+      ctx.strokeStyle = bgNetHexA(cols[a.c % cols.length], (lineA+.12) * (1 - Math.sqrt(md2)/ml));
+      ctx.beginPath(); ctx.moveTo(a.x,a.y); ctx.lineTo(bgNet.mx,bgNet.my); ctx.stroke();
+    }
+  }
+  // จุด + แสงเรือง (วงกลมโปร่งแสงซ้อน แทน shadowBlur) กะพริบเบาๆ ตามเฟสของแต่ละจุด
+  for (const p of P){
+    const col = cols[p.c % cols.length];
+    const tw = bgNet.reduced ? 1 : .7 + .3*Math.sin(t/900 + p.ph);
+    ctx.fillStyle = bgNetHexA(col, dotA * .18 * tw);
+    ctx.beginPath(); ctx.arc(p.x,p.y,p.r*3.4,0,Math.PI*2); ctx.fill();
+    ctx.fillStyle = bgNetHexA(col, dotA * tw);
+    ctx.beginPath(); ctx.arc(p.x,p.y,p.r,0,Math.PI*2); ctx.fill();
+  }
+}
+/** ควรวาดอยู่หรือไม่ ณ ขณะนี้ — อ่านจาก DOM ตรงๆ (ไม่อ้างตัวแปร welcomeActive
+ *  ซึ่งประกาศด้วย let ไว้ท้ายสคริปต์ — อ่านก่อนบรรทัดนั้นทำงานจะ throw) */
+function bgNetShouldRun(){
+  if (!state.bgFx || document.hidden) return false;
+  const sp = document.getElementById('introSplash');
+  const splashUp = sp && sp.style.display !== 'none' && !sp.classList.contains('intro-hide');
+  return !splashUp;
+}
+function bgNetLoop(t){
+  bgNet.raf = null;
+  if (!bgNet.running) return;
+  if (!bgNetShouldRun()){
+    // ไม่วาด และไม่หมุน rAF เปล่าๆ — ตรวจใหม่ทุก 600ms (ราคาถูกมาก)
+    bgNet.timer = setTimeout(()=>{ bgNet.timer=null; if (bgNet.running) bgNet.raf = requestAnimationFrame(bgNetLoop); }, 600);
+    return;
+  }
+  if (t - bgNet.lastFrame >= 33){ bgNet.lastFrame = t; bgNetDraw(t); }   // ~30 เฟรม/วินาที
+  bgNet.raf = requestAnimationFrame(bgNetLoop);
+}
+function bgNetStart(){
+  // ★ v118 แก้ (เจอจากชุดทดสอบ): applyBgFx() ถูกเรียก "ก่อน" initBgFxNetwork() ตอนเริ่มโปรแกรม
+  //   เดิมจึงเริ่มลูปวาดจริงก่อนที่ระบบจะรู้ว่าเครื่องตั้ง "ลดการเคลื่อนไหว" ไว้ พอ init มาสั่ง
+  //   วาดภาพนิ่งครั้งเดียว ก็ถูกตีกลับเพราะ "กำลังทำงานอยู่แล้ว" → เครื่องที่ขอลดการเคลื่อนไหว
+  //   จุดไม่ขยับก็จริง แต่ลูปยังวาดซ้ำ 30 ครั้ง/วินาทีตลอดเวลา (เปลือง CPU เปล่าๆ)
+  //   และในโหมดปกติก็เริ่มวาดตอนที่ canvas ยังไม่ถูกกำหนดขนาด — จึงให้รอ init ก่อนเสมอ
+  if (!bgNet.inited) return;
+  if (bgNet.running) return;
+  bgNet.running = true;
+  if (bgNet.reduced){ bgNetDraw(performance.now()); bgNet.running = false; return; }  // ภาพนิ่งครั้งเดียว
+  bgNet.raf = requestAnimationFrame(bgNetLoop);
+}
+function bgNetStop(){
+  bgNet.running = false;
+  if (bgNet.raf){ cancelAnimationFrame(bgNet.raf); bgNet.raf = null; }
+  if (bgNet.timer){ clearTimeout(bgNet.timer); bgNet.timer = null; }
+}
+function initBgFxNetwork(){
+  const cv = document.getElementById('bgFxNet');
+  if (!cv || !cv.getContext) return;          // เบราว์เซอร์ไม่มี canvas: ชั้นอื่นยังทำงานตามปกติ
+  try { bgNet.reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches; } catch(e){}
+  bgNetResize();
+  bgNet.inited = true;            // ตั้งหลังรู้ค่า reduced + กำหนดขนาดแล้วเท่านั้น
+  let rt = null;
+  window.addEventListener('resize', ()=>{ clearTimeout(rt); rt = setTimeout(()=>{ bgNetResize(); if (bgNet.reduced) bgNetDraw(performance.now()); }, 150); }, { passive:true });
+  let fine = true; try { fine = window.matchMedia('(pointer: fine)').matches; } catch(e){}
+  if (fine && !bgNet.reduced){
+    window.addEventListener('pointermove', e=>{ bgNet.mx = e.clientX; bgNet.my = e.clientY; }, { passive:true });
+    document.addEventListener('pointerleave', ()=>{ bgNet.mx = bgNet.my = -9999; });
+    window.addEventListener('blur', ()=>{ bgNet.mx = bgNet.my = -9999; });
+  }
+  if (state.bgFx) bgNetStart();
 }
 
 /** HTML ของสวิตช์ — ใช้ร่วมกันทั้งแถบข้างและเมนูมือถือ */
@@ -10866,6 +11117,7 @@ function initNav(){
   bindBgFx();
   applyBgFx(state.bgFx, false);
   initBgFxParallax();   // v115: พื้นหลังขยับตามเมาส์/การเลื่อนหน้า
+  initBgFxNetwork();    // v118: โครงข่ายจุดเชื่อมโยงบนพื้นหลัง
   // สลับแสดง/ซ่อนตัวเลขกำกับจุดบนกราฟเส้นแนวโน้ม — จำค่าไว้ให้ใช้ครั้งหน้าด้วย
   document.getElementById('toggleLabelsMonthly').addEventListener('change', (e)=>{
     state.chartLabels.monthly = e.target.checked;
