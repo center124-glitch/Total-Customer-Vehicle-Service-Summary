@@ -1,6 +1,34 @@
 <!DOCTYPE html>
 <!--
   ระบบวิเคราะห์ยอดลูกค้า-ยอดรถยนต์ · เวอร์ชัน v113
+  v119 — ตรวจทานตรรกะทั้งระบบ · เพิ่ม Error Handling · รายงานทางการมาตรฐานเอกสาร (Document Control)
+
+  ■ 1) การอ่านข้อมูลจาก Google Sheets (ทั้งช่องทางหลัก Apps Script และสำรอง gviz)
+     • ตัวเลข: รับ "1,234" / "1,234 คน" / เลขไทย · ปฏิเสธ 0x10, 1e3 (เดิมได้ 16 / 1000) · ติดลบ → 0
+       ค่าที่อ่านไม่ได้ (เช่น "ปิดปรับปรุง") แจ้งในรายการ "ค่าที่ควรตรวจสอบ" แทนการกลายเป็น 0 เงียบๆ
+     • วันที่: รองรับ ISO / เลขลำดับวันของชีต / ปี 2 หลัก (พ.ศ.-ค.ศ.) · วันที่ไม่มีจริง (31/04, 29/02 ปีปกติ) ถูกปฏิเสธ
+     • Apps Script: แถว null ไม่ทำซิงค์ล่ม · วันที่ซ้ำนับครั้งเดียว · วันของปีอื่นไม่ถูกย้ายปี · แถวที่ทุกค่า = 0 ไม่นับเป็นวันมีข้อมูล
+     • ลายนิ้วมือข้อมูลเปลี่ยนเป็น hash ทั้งชุด (เดิมย้ายยอดระหว่างวันแล้วระบบไม่รู้ว่าข้อมูลเปลี่ยน)
+     • เทียบปีก่อน: 29 ก.พ. → 28 ก.พ. ในปีที่ไม่มีวันนั้น
+     • ข้อมูลทั้งปีลดลงผิดปกติ → ไม่รับ และแจ้งผู้ใช้ (เดิมเงียบ) · กดซิงค์ระหว่างซิงค์ → ต่อคิวอีก 1 รอบ (เดิมคำขอหาย)
+  ■ 2) ตารางแก้ไขข้อมูล
+     • ลบตัวเลขจนช่องว่าง → คืนค่าเดิม (เดิมบันทึกเป็น 0 ทับยอดจริง) · ทศนิยม/ตัวอักษร → ปฏิเสธพร้อมเหตุผล
+     • พิมพ์คอมมาได้ · ยอดรวมเดือน/ปีคำนวณใหม่ทันทีหลังแก้ (เดิมค้างค่าเก่า)
+     • ปุ่ม "ลบ" (เดิมซ่อนแถวบนจออย่างเดียว ไม่ลบในชีต) → "ล้างวัน" ล้างจริงเมื่อกดบันทึก พร้อมยืนยันก่อน
+     • ยกเลิกการแก้ไขตอนออฟไลน์ → คืนค่าบนจอได้เอง
+  ■ 3) การบันทึก
+     • ส่งหลายชุดแล้วล้มกลางทาง → แจ้ง "บันทึกได้ X จาก Y วัน" ส่วนที่เหลือยังค้างให้กดส่งต่อ · เลิกทำได้เฉพาะส่วนที่บันทึกแล้ว
+     • หมดเวลา → แจ้งว่า "อาจบันทึกไปแล้ว" แล้วซิงค์ตรวจ · หมายเหตุยาวเกิน → บอกวันที่ก่อนส่ง (จำกัด 300 ตัวอักษร)
+     • ฟอร์มบันทึก: รับ "41,500" (เดิมช่องที่มีคอมมาถูกข้ามเงียบๆ) · วันในอนาคตต้องยืนยัน
+       วันเริ่มต้น = วันถัดจากข้อมูลล่าสุดของทั้งระบบ
+  ■ 4) การแจ้งเตือน: ข้อความซ้ำรวมเป็น ×N · แสดงพร้อมกันไม่เกิน 4 · ข้อผิดพลาดค้างนานขึ้น · role สำหรับโปรแกรมอ่านหน้าจอ
+  ■ 5) รายงานทางการ: แถบควบคุมเอกสารหน้าแรก (เลขที่รายงาน · ช่วงข้อมูล · ข้อมูล ณ วันที่ · ความครบถ้วน · ชั้นการเปิดเผย)
+     ทุกหน้ามี "เลขที่ … หน้า X / Y" · รายงานเดือน/สัปดาห์แสดงแท็กซี่เมื่อมีข้อมูล (เดิมขาด)
+     ไม่เพิ่มช่องลงนาม (ตามที่สั่งไว้ใน v84)
+  ■ 6) คู่กับ Code_42.gs (แนะนำให้ Deploy ใหม่): ตรรกะอ่านตัวเลข/วันที่ตรงกับหน้าเว็บ · ปฏิเสธวันที่ไม่มีจริง
+     (หน้าเว็บ v119 ใช้กับ Code_41.gs เดิมได้)
+  ทดสอบ: ชุด v119 52/52 · ชุดย้อนหลัง v114–v118 / XSS / หน่วยความจำ / fuzz ผ่านทั้งหมด
+
   v118 — ลูกเล่นพื้นหลังแดชบอร์ดเพิ่ม 3 ชั้น · นำธีม Forest และสีประจำวันออก
 
   ■ 1) ลูกเล่นพื้นหลังใหม่ (อยู่ใน #bgFx ทั้งหมด → อยู่หลังการ์ดเสมอ · สวิตช์ "เอฟเฟกต์พื้นหลัง" คุมทั้งหมด)
@@ -3406,6 +3434,12 @@ main .card{max-width:100%;}
   background:var(--bg-elev);color:var(--ink);font-family:inherit;}
 #view-entry input:focus{outline:2px solid var(--gate-a1);outline-offset:-1px;border-color:transparent !important;}
 #entryTableWrap table{min-width:60rem}
+/* v119: ช่องที่ค่าไม่ถูกต้อง (กะพริบกรอบแดงสั้นๆ ตอนคืนค่าเดิม) และแถวที่รอล้างเมื่อบันทึก */
+.edit-input-bad{outline:2px solid var(--down) !important;outline-offset:-1px;animation:editShake .32s ease;}
+@keyframes editShake{25%{transform:translateX(-3px);}75%{transform:translateX(3px);}}
+.edit-row-cleared td{opacity:.55;}
+.edit-row-cleared td:first-child{text-decoration:line-through;}
+@media (prefers-reduced-motion: reduce){ .edit-input-bad{animation:none;} }
 /* จอเล็ก: ฟอร์มกรอกทีละวันให้เป็น 2 คอลัมน์กำลังพอดี ไม่บีบจนพิมพ์ยาก */
 @media (max-width:640px){
   #entryFields{gap:.55rem}
@@ -4397,7 +4431,7 @@ main .card{max-width:100%;}
           <div id="entryFields" class="grid grid-cols-2 lg:grid-cols-3 gap-3 mb-4"></div>
           <div class="mb-4">
             <label class="text-xs font-semibold block mb-1" style="color:var(--ink-soft);">งานกิจกรรม (ถ้ามี)</label>
-            <input type="text" id="entryNote" placeholder="เช่น งาน Thonburi CAFÉ 2026" class="edit-input text-sm rounded-lg px-3 py-2 w-full" style="border:1px solid var(--line);">
+            <input type="text" id="entryNote" maxlength="300" placeholder="เช่น งาน Thonburi CAFÉ 2026" class="edit-input text-sm rounded-lg px-3 py-2 w-full" style="border:1px solid var(--line);">
           </div>
           <div class="flex flex-wrap gap-2 items-center">
             <button id="entrySaveBtn" class="text-sm font-semibold px-4 py-2.5 rounded-xl text-white"
@@ -5600,8 +5634,9 @@ function fmt(n){
   return Math.round(v).toLocaleString('th-TH');
 }
 function fmt1(n){
-  if (n === null || n === undefined || isNaN(n)) return '-';
-  return n.toLocaleString('th-TH', {minimumFractionDigits:1, maximumFractionDigits:1});
+  const v = (typeof n === 'number') ? n : (typeof n === 'string' && n.trim() !== '' ? Number(n) : NaN);
+  if (!isFinite(v)) return '-';   // v119: เดิมสตริงตัวเลข/true หลุดออกไปแสดงดิบโดยไม่จัดรูปแบบ
+  return v.toLocaleString('th-TH', {minimumFractionDigits:1, maximumFractionDigits:1});
 }
 // v85: ป้องกันครบทั้งตัวตั้งและตัวหาร — เดิมตรวจแค่ตัวหาร ทำให้ safeDiv(NaN, 5) คืน NaN
 // แล้ว fmt() จะแสดงเป็น "-" กลางรายงานโดยไม่มีใครรู้ว่าคำนวณพลาดตรงไหน
@@ -5669,12 +5704,32 @@ function showToast(message, kind){
   //   error จริงจะถูกกลบด้วย error ใหม่ ทำให้สืบสาเหตุไม่ได้เลย
   const holder = document.getElementById('toastContainer');
   if (!holder){ console.warn('[toast]', kind, message); return; }
+  // ★ v119: ข้อความเดียวกันซ้ำ → นับรวมเป็น "×N" แทนการซ้อนเพิ่ม
+  //   และแสดงพร้อมกันไม่เกิน 4 อัน (ทดสอบเดิม: เรียก 300 ครั้ง = 300 กล่องซ้อนเต็มจอ)
+  const key = kind + '|' + String(message);
+  const dup = [...holder.children].find(c => c.dataset.key === key && c.style.opacity !== '0');
+  if (dup){
+    const n = (Number(dup.dataset.count) || 1) + 1;
+    dup.dataset.count = n;
+    const badge = dup.querySelector('.toast-count');
+    if (badge) badge.textContent = '×' + n;
+    clearTimeout(dup._t); dup._t = setTimeout(() => dup._hide && dup._hide(), 3200);
+    return;
+  }
+  const live = [...holder.children].filter(c => c.style.opacity !== '0');
+  while (live.length >= 4){ const old = live.shift(); old.remove(); }
   const el = document.createElement('div');
+  el.dataset.key = key; el.dataset.count = 1;
+  el.setAttribute('role', kind === 'error' ? 'alert' : 'status');
   el.className = 'toast flex items-center gap-2 px-4 py-3 rounded-xl text-white text-sm font-medium shadow-lg';
   el.style.background = colors[kind] || colors.success;
   el.innerHTML = `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">${icons[kind] || icons.success}</svg><span>${esc(String(message))}</span>`;
+  const span = el.querySelector('span');
+  if (span) span.insertAdjacentHTML('afterend', '<b class="toast-count" style="margin-left:4px;opacity:.85;"></b>');
   holder.appendChild(el);
-  setTimeout(()=>{ el.style.opacity='0'; el.style.transform='translateY(8px)'; el.style.transition='all .3s ease'; setTimeout(()=>el.remove(), 300); }, 3200);
+  el._hide = () => { el.style.opacity='0'; el.style.transform='translateY(8px)'; el.style.transition='all .3s ease'; setTimeout(()=>el.remove(), 300); };
+  // ข้อความแจ้งข้อผิดพลาดค้างนานกว่า (6.5 วิ) — มักยาวและต้องอ่านให้จบก่อนตัดสินใจทำต่อ
+  el._t = setTimeout(el._hide, kind === 'error' ? 6500 : 3200);
 }
 function setLoading(on, text){
   const ov = document.getElementById('loadingOverlay');
@@ -6967,8 +7022,13 @@ function restoreEditDraft(){
     const row = findDailyByISO(rec.date);
     if (!row){ skipped++; return; }
     pendingEdits.set(rec.date, rec);
+    // ★ v119: จำค่าตั้งต้นก่อนเขียนทับ — ไม่งั้น "ยกเลิกการแก้ไข" และ "เลิกทำ" จะไม่รู้ค่าเดิม
+    const b = pendingEditsBefore.get(rec.date) || {};
+    METRIC_KEYS.concat(['note']).forEach(k => { if (rec[k] != null && b[k] === undefined) b[k] = row[k]; });
+    pendingEditsBefore.set(rec.date, b);
     METRIC_KEYS.forEach(k => { if (rec[k] != null) row[k] = rec[k]; });
     if (rec.note != null) row.note = rec.note;
+    recomputeTotalsForDate(rec.date);   // v119
     restored++;
   });
   renderEditDirtyBar();
@@ -7225,6 +7285,7 @@ async function saveEditsToSheet(){
     const res = await saveRecordsToSheet(records);
     pendingEdits.clear();
     pendingEditsBefore.clear();
+    records.forEach(r => { const row = findDailyByISO(r.date); if (row) delete row._cleared; });
     clearEditDraft();              // v106: บันทึกสำเร็จแล้ว ร่างสำรองไม่จำเป็นอีก
     lastSaveSnapshot = { at: Date.now(), records: snapshot, created: res.createdCount || 0 };
     logAudit('save', { days: records.length, updated: res.updatedCount, created: res.createdCount });
@@ -7233,8 +7294,22 @@ async function saveEditsToSheet(){
     await syncAllFromSheets(true);   // ดึงข้อมูลจริงกลับมายืนยันว่าบันทึกถูกต้อง
     renderEditTable();
   } catch(err){
-    logAudit('save_fail', { days: records.length, msg: String(err && err.message || err).slice(0,120) });
-    showToast('บันทึกไม่สำเร็จ: ' + err.message, 'error');
+    const done = (err && Array.isArray(err.savedRecords)) ? err.savedRecords : [];
+    if (done.length){
+      // ★ v119: บันทึกได้บางส่วน — เอาวันที่สำเร็จแล้วออกจากงานค้าง และเปิดให้เลิกทำส่วนนั้นได้
+      const doneDates = new Set(done.map(r => r.date));
+      lastSaveSnapshot = { at: Date.now(), records: snapshot.filter(s => doneDates.has(s.date)), created: 0 };
+      doneDates.forEach(d => { pendingEdits.delete(d); pendingEditsBefore.delete(d); const r = findDailyByISO(d); if (r) delete r._cleared; });
+      persistEditDraft();
+      renderEditDirtyBar();
+      logAudit('save_partial', { saved: done.length, total: records.length, msg: String(err.message).slice(0,120) });
+      showToast(`บันทึกได้ ${done.length} จาก ${records.length} วัน — อีก ${records.length - done.length} วันยังค้างอยู่ (${err.message}) กดบันทึกอีกครั้งเพื่อส่งส่วนที่เหลือ`, 'error');
+      syncAllFromSheets(true);
+    } else {
+      logAudit('save_fail', { days: records.length, msg: String(err && err.message || err).slice(0,120) });
+      showToast('บันทึกไม่สำเร็จ: ' + err.message, 'error');
+      if (err && err.code === 'timeout') syncAllFromSheets(true);
+    }
   } finally {
     btn.disabled = false; btn.style.opacity = '1'; btn.textContent = 'บันทึกลง Google Sheets';
   }
@@ -7281,6 +7356,15 @@ async function discardEdits(){
   if (!pendingEdits.size) return;
   if (!confirm(`ยกเลิกการแก้ไข ${pendingEdits.size} วัน และโหลดข้อมูลจริงจาก Google Sheets กลับมาใช่หรือไม่?`)) return;
   const n = pendingEdits.size;
+  // ★ v119: คืนค่าเดิมบนหน้าจอเองก่อน — เดิมอาศัยการซิงค์ดึงค่าจริงกลับมา
+  //   ถ้าซิงค์ล้มเหลว (ออฟไลน์) หน้าจอยังแสดงค่าที่แก้ไว้ ทั้งที่ระบบบอกว่า "ยกเลิกแล้ว"
+  pendingEditsBefore.forEach((before, iso) => {
+    const row = findDailyByISO(iso);
+    if (!row) return;
+    Object.keys(before).forEach(k => { if (before[k] !== undefined) row[k] = before[k]; });
+    delete row._cleared;
+    recomputeTotalsForDate(iso);
+  });
   pendingEdits.clear();
   pendingEditsBefore.clear();
   clearEditDraft();
@@ -7304,7 +7388,7 @@ function renderEditTable(){
   const rows = sorted.map((d) => {
     const realIdx = m.daily.indexOf(d);
     return `
-    <tr class="border-b" style="border-color:var(--line);" data-idx="${realIdx}">
+    <tr class="border-b${d._cleared ? ' edit-row-cleared' : ''}" style="border-color:var(--line);" data-idx="${realIdx}">
       <td class="py-1.5 pr-3 whitespace-nowrap">${formatThaiDateShort(d.date)}<br><span class="text-xs" style="color:${thaiDayColor(d.date)};font-weight:600;">${thaiWeekday(d.date)}</span></td>
       <td class="py-1.5 pr-3">
         <select class="edit-input text-sm rounded px-1 py-1" data-field="section" data-key="${key}" data-idx="${realIdx}">
@@ -7312,14 +7396,16 @@ function renderEditTable(){
           <option value="weekend" ${d.section==='weekend'?'selected':''}>หยุด</option>
         </select>
       </td>
-      <td class="py-1.5 pr-3"><input type="number" class="edit-input text-sm rounded px-2 py-1 text-right w-24" value="${d.customer}" data-field="customer" data-key="${key}" data-idx="${realIdx}"></td>
-      <td class="py-1.5 pr-3"><input type="number" class="edit-input text-sm rounded px-2 py-1 text-right w-20" value="${d.car}" data-field="car" data-key="${key}" data-idx="${realIdx}"></td>
-      <td class="py-1.5 pr-3"><input type="number" class="edit-input text-sm rounded px-2 py-1 text-right w-20" value="${d.moto}" data-field="moto" data-key="${key}" data-idx="${realIdx}"></td>
-      <td class="py-1.5 pr-3"><input type="number" class="edit-input text-sm rounded px-2 py-1 text-right w-20" value="${d.delivery}" data-field="delivery" data-key="${key}" data-idx="${realIdx}"></td>
-      <td class="py-1.5 pr-3"><input type="number" class="edit-input text-sm rounded px-2 py-1 text-right w-20" value="${d.taxi||0}" data-field="taxi" data-key="${key}" data-idx="${realIdx}"></td>
-      <td class="py-1.5 pr-3"><input type="number" class="edit-input text-sm rounded px-2 py-1 text-right w-20" value="${d.mrt||0}" data-field="mrt" data-key="${key}" data-idx="${realIdx}"></td>
-      <td class="py-1.5 pr-3"><input type="text" class="edit-input text-sm rounded px-2 py-1 w-48" value="${esc(d.note||'')}" data-field="note" data-key="${key}" data-idx="${realIdx}"></td>
-      <td class="py-1.5"><button class="text-red-500 hover:text-red-700 text-xs" data-delrow="${realIdx}" data-delkey="${key}">ลบ</button></td>
+      <td class="py-1.5 pr-3"><input type="text" inputmode="numeric" autocomplete="off" class="edit-input text-sm rounded px-2 py-1 text-right w-24" value="${fmtInput(d.customer)}" aria-label="${METRIC_COLOR.customer.label} ${formatThaiDateShort(d.date)}" data-field="customer" data-key="${key}" data-idx="${realIdx}"></td>
+      <td class="py-1.5 pr-3"><input type="text" inputmode="numeric" autocomplete="off" class="edit-input text-sm rounded px-2 py-1 text-right w-20" value="${fmtInput(d.car)}" aria-label="${METRIC_COLOR.car.label} ${formatThaiDateShort(d.date)}" data-field="car" data-key="${key}" data-idx="${realIdx}"></td>
+      <td class="py-1.5 pr-3"><input type="text" inputmode="numeric" autocomplete="off" class="edit-input text-sm rounded px-2 py-1 text-right w-20" value="${fmtInput(d.moto)}" aria-label="${METRIC_COLOR.moto.label} ${formatThaiDateShort(d.date)}" data-field="moto" data-key="${key}" data-idx="${realIdx}"></td>
+      <td class="py-1.5 pr-3"><input type="text" inputmode="numeric" autocomplete="off" class="edit-input text-sm rounded px-2 py-1 text-right w-20" value="${fmtInput(d.delivery)}" aria-label="${METRIC_COLOR.delivery.label} ${formatThaiDateShort(d.date)}" data-field="delivery" data-key="${key}" data-idx="${realIdx}"></td>
+      <td class="py-1.5 pr-3"><input type="text" inputmode="numeric" autocomplete="off" class="edit-input text-sm rounded px-2 py-1 text-right w-20" value="${fmtInput(d.taxi||0)}" aria-label="${METRIC_COLOR.taxi.label} ${formatThaiDateShort(d.date)}" data-field="taxi" data-key="${key}" data-idx="${realIdx}"></td>
+      <td class="py-1.5 pr-3"><input type="text" inputmode="numeric" autocomplete="off" class="edit-input text-sm rounded px-2 py-1 text-right w-20" value="${fmtInput(d.mrt||0)}" aria-label="${METRIC_COLOR.mrt.label} ${formatThaiDateShort(d.date)}" data-field="mrt" data-key="${key}" data-idx="${realIdx}"></td>
+      <td class="py-1.5 pr-3"><input type="text" maxlength="${NOTE_MAX}" class="edit-input text-sm rounded px-2 py-1 w-48" value="${esc(d.note||'')}" data-field="note" data-key="${key}" data-idx="${realIdx}"></td>
+      <td class="py-1.5">${d._cleared
+        ? '<span class="text-xs" title="ข้อมูลวันนี้จะถูกล้างเมื่อกด บันทึกลง Google Sheets" style="color:var(--down);font-weight:600;white-space:nowrap;">รอล้าง</span>'
+        : `<button class="text-red-500 hover:text-red-700 text-xs" data-delrow="${realIdx}" data-delkey="${key}" title="ล้างข้อมูลทั้งวันนี้ในชีต (ยืนยันก่อน · ย้อนได้)">ล้างวัน</button>`}</td>
     </tr>`;
   }).join('');
   document.getElementById('editTableBody').innerHTML = rows;
@@ -7339,28 +7425,34 @@ function renderEditTable(){
       }
       const beforeVal = row[field];   // v106: เก็บค่าเดิมไว้เขียนลงประวัติการแก้ไข
       if (METRIC_KEYS.includes(field)) {
-        // กันค่าติดลบ/ไม่ใช่ตัวเลข — ยอดนับต้องเป็นจำนวนเต็มบวกเสมอ
-        let n = Math.round(Number(val));
-        if (!isFinite(n) || n < 0) {
-          n = 0;
-          showToast('ค่าต้องเป็นตัวเลขบวกเท่านั้น — ปรับเป็น 0 ให้อัตโนมัติ', 'error');
-        }
-        // ★ v106: เพดานเดียวกับหน้า "บันทึกข้อมูล" — เดิมหน้าแก้ไขไม่มีเพดานเลย
-        //   จึงเป็นช่องทางที่เลขพิมพ์เกินหลักหลุดเข้าระบบได้ ทั้งที่หน้าบันทึกกันไว้แล้ว
-        if (n > ENTRY_MAX[field]) {
-          showToast(`${METRIC_COLOR[field].label} ${fmt(n)} สูงผิดปกติ (เกิน ${fmt(ENTRY_MAX[field])}) — ยกเลิกการแก้ไขช่องนี้`, 'error');
-          e.target.value = beforeVal;
+        // ★ v119: ค่าที่ใช้ไม่ได้ "ย้อนกลับเป็นค่าเดิม" เสมอ — เดิมเว้นว่าง/พิมพ์ผิด/ติดลบถูกแปลงเป็น 0
+        //   แล้วจัดคิวไปเขียนทับยอดจริงในชีต (เผลอลบตัวเลขในช่องแล้วกด Tab = ยอดวันนั้นหายเป็น 0)
+        //   ต้องการ 0 จริงให้พิมพ์ 0 · ทศนิยมถูกปฏิเสธแทนการปัดเงียบๆ
+        const r = readCountInput(val, field);
+        if (r.empty || r.error){
+          e.target.value = fmtInput(beforeVal);
+          e.target.classList.add('edit-input-bad');
+          setTimeout(() => e.target.classList.remove('edit-input-bad'), 1600);
+          showToast(r.empty ? `${METRIC_COLOR[field].label}: ช่องว่างใช้ไม่ได้ — คืนค่าเดิม ${fmt(beforeVal)} (ต้องการ 0 ให้พิมพ์ 0)`
+                            : `${r.error} — คืนค่าเดิม ${fmt(beforeVal)}`, 'error');
           return;
         }
+        const n = r.value;
+        e.target.value = fmtInput(n);
+        if (n === Number(beforeVal)) return;                    // ค่าเท่าเดิม ไม่ต้องจัดคิว
         row[field] = n;
         markEdited(row.date, field, n, beforeVal);   // v96: จำไว้ว่าต้องบันทึกกลับ Sheets
-        e.target.value = n; // สะท้อนค่าที่ถูกปรับกลับไปที่ช่องกรอก
+        recomputeTotalsForDate(row.date);            // v119: ยอดรวมเดือนตรงกับแถวเสมอ
       } else {
-        row[field] = val;
-        // v96: เฉพาะ "งานกิจกรรม" ที่บันทึกกลับ Sheets ได้
-        //   ส่วน "ประเภทวัน" (วันธรรมดา/วันหยุด) ระบบคำนวณจากวันที่ + ปฏิทินนักขัตฤกษ์เอง
-        //   ไม่มีคอลัมน์นี้ในชีต จึงบันทึกกลับไม่ได้ — แก้ได้เฉพาะเพื่อดูผลชั่วคราวบนหน้าจอ
-        if (field === 'note') markEdited(row.date, 'note', val, beforeVal);
+        if (field === 'note'){
+          const v2 = String(val).trim().slice(0, NOTE_MAX);
+          e.target.value = v2;
+          if (v2 === String(beforeVal || '')) return;
+          row.note = v2;
+          markEdited(row.date, 'note', v2, beforeVal);
+        } else {
+          row[field] = val;
+        }
       }
       // ★ v96: เปลี่ยนข้อความให้ตรงความจริง — เดิมเขียนว่า "บันทึกการแก้ไขแล้ว"
       //   ซึ่งทำให้เข้าใจผิดว่าบันทึกลง Google Sheets แล้ว ทั้งที่ยังอยู่แค่ในหน่วยความจำ
@@ -7369,19 +7461,33 @@ function renderEditTable(){
         : 'แก้ไขแล้ว — กด "บันทึกลง Google Sheets" เพื่อบันทึกถาวร', 'info');
     });
   });
+  // ★ v119: "ลบ" เดิมเอาแถวออกจากหน้าจออย่างเดียว — ไม่เข้าคิวบันทึก ไม่ถามยืนยัน ย้อนไม่ได้
+  //   และรอบซิงค์ถัดไปก็ดึงแถวกลับมา (ผู้ใช้เข้าใจว่าลบแล้วแต่ข้อมูลในชีตยังอยู่ครบ)
+  //   ตอนนี้ = "ล้างข้อมูลทั้งวัน": ตั้งทุกตัวชี้วัดเป็น 0 และลบหมายเหตุ ผ่านระบบงานค้างตามปกติ
+  //   จึงได้ทั้งการยืนยัน · แถบงานค้าง · ร่างสำรอง · ประวัติการแก้ไข · ปุ่มเลิกทำหลังบันทึก
+  //   (แถวที่ทุกค่าเป็น 0 ระบบถือว่า "ยังไม่ได้กรอก" — หายจากการคำนวณทุกจุดตั้งแต่ตอนนี้)
   document.querySelectorAll('#editTableBody [data-delrow]').forEach(btn=>{
     btn.addEventListener('click', (e)=>{
-      const { delrow, delkey } = e.target.dataset;
-      // guard: กันเดือน/แถวหายไป และกัน index เพี้ยนหลัง splice
+      const { delrow, delkey } = e.currentTarget.dataset;
       const month = state.data[delkey];
       const i = Number(delrow);
       if (!month || !month.daily || !Number.isInteger(i) || i < 0 || i >= month.daily.length) {
         renderEditTable();
         return;
       }
-      month.daily.splice(i, 1);
-      renderEditTable(); // re-render ทันที → data-idx ของทุกแถวตรงกับ array เสมอ
-      showToast('ลบแถวข้อมูลแล้ว', 'info');
+      const row = month.daily[i];
+      const summary = METRIC_KEYS.filter(k => Number(row[k]) > 0)
+        .map(k => `${METRIC_COLOR[k].label} ${fmt(row[k])}`).join(' · ');
+      if (!confirm(`ล้างข้อมูลทั้งวันของ ${thaiWeekday(row.date)} ${formatThaiDateShort(row.date)} ?\n\n` +
+                   `${summary || 'ไม่มียอด'}${row.note ? '\nกิจกรรม: ' + row.note : ''}\n\n` +
+                   `ทุกช่องจะถูกตั้งเป็น 0 ในชีตเมื่อกด "บันทึกลง Google Sheets"\n` +
+                   `(ยังไม่บันทึกตอนนี้ · กดยกเลิกการแก้ไขได้ · หลังบันทึกยังกดเลิกทำได้)`)) return;
+      METRIC_KEYS.forEach(k => { const b0 = row[k]; if (Number(b0) !== 0){ row[k] = 0; markEdited(row.date, k, 0, b0); } });
+      if (row.note){ const b0 = row.note; row.note = ''; markEdited(row.date, 'note', '', b0); }
+      row._cleared = true;
+      recomputeTotalsForDate(row.date);
+      renderEditTable();
+      showToast(`ทำเครื่องหมายล้าง ${formatThaiDateShort(row.date)} แล้ว — กด "บันทึกลง Google Sheets" เพื่อยืนยัน`, 'info');
     });
   });
 }
@@ -7840,7 +7946,13 @@ function latestRecordedDate(){
 function shiftISO(iso, { days = 0, years = 0 } = {}){
   if (!isValidISO(iso)) return iso;
   const d = new Date(iso + 'T00:00:00');
-  if (years) d.setFullYear(d.getFullYear() + years);
+  if (years){
+    // ★ v119: 29 ก.พ. เลื่อนไปปีที่ไม่มี 29 ก.พ. → ใช้ 28 ก.พ. (เดิม JS เลื่อนเป็น 1 มี.ค. —
+    //   ปุ่ม "วันเดียวกันปีก่อน" จึงเอา 29 ก.พ. ไปเทียบกับ 1 มี.ค. ซึ่งเป็นคนละเดือน)
+    const m = d.getMonth(), day = d.getDate();
+    d.setDate(1); d.setFullYear(d.getFullYear() + years);
+    d.setDate(Math.min(day, daysInMonth(m + 1, d.getFullYear())));
+  }
   if (days) d.setDate(d.getDate() + days);
   return toLocalISO(d);
 }
@@ -8314,6 +8426,7 @@ const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbwv9LFLGyp7ECTA
 
 let syncTimer = null;
 let syncInProgress = false;
+let syncQueued = false, syncQueuedLoud = false;   // v119: ซิงค์ที่ถูกขอระหว่างรอบเดิมยังไม่จบ
 let lastSyncTime = null;
 let lastSyncSource = null; // 'appsscript' | 'gviz' — ไว้แสดงในรายงานว่าดึงจากแหล่งใด
 
@@ -8377,13 +8490,35 @@ function detectColumnMap(rows){
 // ── แปลงเซลล์เป็นตัวเลขจำนวนเต็มไม่ติดลบ ──
 // ★ ต้องถอดลูกน้ำก่อน: บางปีในไฟล์เก็บยอดเป็นข้อความ "3,456" → Number() จะได้ NaN แล้วยอดหายทั้งเดือน
 // ★ ค่าติดลบ (พิมพ์ผิด/สูตรพังในชีต) ปัดเป็น 0 กันยอดรวมทั้งระบบเพี้ยน
+/** ★ v119: แปลงข้อความตัวเลขแบบที่คนพิมพ์จริง → ตัวเลข หรือ null ถ้าอ่านไม่ได้
+ *  รองรับ: "1,234" · "1 234" · "๑,๒๓๔" (เลขไทย) · "1,234 คน" / "850 คัน" (มีหน่วยต่อท้าย)
+ *  ★ ปฏิเสธ (คืน null) รูปแบบที่ Number() รับแต่คนไม่ได้ตั้งใจ: "0x10"→16 · "1e3"→1000 · "Infinity"
+ *    เดิมสามรูปแบบนี้ถูกแปลงเป็นตัวเลขเงียบๆ — เลขฐานสิบหกหรือเลขยกกำลังในช่องยอดลูกค้าคือ "พิมพ์ผิด" เสมอ
+ *  ใช้ร่วมกันทุกจุดที่รับตัวเลข (อ่านชีต · ฟอร์มกรอก · ตารางแก้ไข) ให้ทุกทางเข้าตีความเหมือนกัน */
+const THAI_DIGITS = '๐๑๒๓๔๕๖๗๘๙';
+function parseCount(v){
+  if (v === null || v === undefined) return null;
+  if (typeof v === 'number') return isFinite(v) ? v : null;
+  let t = String(v).trim();
+  if (!t) return null;
+  t = t.replace(/[๐-๙]/g, ch => String(THAI_DIGITS.indexOf(ch)));
+  t = t.replace(/(คน|คัน|ราย|เที่ยว|ครั้ง|persons?|people|cars?|pax)\.?$/i, '').trim();
+  t = t.replace(/[,\s\u00A0\u202F]/g, '');
+  if (!/^-?\d+(\.\d+)?$/.test(t)) return null;      // ไม่รับ 0x.. / 1e.. / ข้อความอื่น
+  const n = Number(t);
+  return isFinite(n) ? n : null;
+}
 function cellToNum(v){
   if (v === null || v === undefined || v === '') return 0;
-  if (typeof v === 'number') return isFinite(v) ? Math.max(0, Math.round(v)) : 0;
-  const t = String(v).replace(/,/g,'').replace(/\s/g,'').trim();
-  if (!t) return 0;
-  const n = Number(t);
-  return isFinite(n) ? Math.max(0, Math.round(n)) : 0;
+  const n = parseCount(v);
+  return (n === null) ? 0 : Math.max(0, Math.round(n));
+}
+/** ★ v119: เซลล์ "มีค่าแต่อ่านเป็นตัวเลขไม่ได้" — ใช้แจ้งเตือนแทนการกลายเป็น 0 เงียบๆ */
+function cellIsUnreadableNumber(v){
+  if (v === null || v === undefined || v === '' || typeof v === 'number') return false;
+  const s = String(v).trim();
+  if (!s || /^[-–—.]+$/.test(s)) return false;          // "-" / "—" = ตั้งใจเว้นว่าง
+  return parseCount(s) === null;
 }
 
 // ── แปลงเซลล์วันที่เป็น Date ──
@@ -8394,11 +8529,30 @@ function cellToDate(v, expectYearCE){
   let d = null;
   if (v instanceof Date && !isNaN(v.getTime())){
     d = new Date(v.getFullYear(), v.getMonth(), v.getDate());
+  } else if (typeof v === 'number' && isFinite(v) && v > 20000 && v < 80000 && Math.floor(v) === v){
+    // ★ v119: เลขลำดับวันของ Google Sheets/Excel (นับจาก 30 ธ.ค. 1899) — เกิดเมื่อเซลล์วันที่
+    //   ถูกจัดรูปแบบเป็น "ตัวเลข" ไว้ เดิมทั้งแถวหายเงียบ · ช่วง 20000–80000 = ค.ศ. 1954–2119
+    d = new Date(1899, 11, 30 + v);
+  } else if (typeof v === 'string' && /^\d{4}-\d{2}-\d{2}/.test(v.trim())){
+    // ★ v119: รูปแบบ ISO "2026-10-29" (พิมพ์มือ/วางจากระบบอื่น) — เดิมทั้งแถวหายเงียบ
+    const iso = v.trim().slice(0, 10);
+    const yr = beToCe(+iso.slice(0, 4)), mon = +iso.slice(5, 7), day = +iso.slice(8, 10);
+    d = new Date(yr, mon - 1, day);
+    if (d.getFullYear() !== yr || d.getMonth() !== mon - 1 || d.getDate() !== day){
+      console.warn(`cellToDate: วันที่ "${v}" ไม่มีอยู่จริงในปฏิทิน — ข้ามแถวนี้`);
+      return null;
+    }
   } else if (typeof v === 'string'){
     const m = v.trim().match(/^(\d{1,2})[\/\-.](\d{1,2})[\/\-.](\d{2,4})$/);
     if (m){
       let day = +m[1], mon = +m[2], yr = +m[3];
-      if (yr < 100) yr += 2000;
+      if (yr < 100){
+        // ★ v119: ปีย่อ 2 หลักกำกวมระหว่าง ค.ศ. กับ พ.ศ. ("69" = 2569 หรือ 2069?)
+        //   เดิมบวก 2000 เสมอ → "29/10/69" กลายเป็น ค.ศ. 2069 แล้วถูกทิ้งเพราะไม่ตรงแท็บ
+        //   ใช้ปีของแท็บเป็นตัวตัดสิน: เลือกการตีความที่ตรงกับปีที่คาดไว้
+        const asCE = 2000 + yr, asBE = beToCe(2500 + yr);
+        yr = (expectYearCE && asBE === expectYearCE) ? asBE : asCE;
+      }
       yr = beToCe(yr);
       if (mon >= 1 && mon <= 12 && day >= 1 && day <= 31){
         d = new Date(yr, mon-1, day);
@@ -8448,6 +8602,14 @@ function parseYearSheetRows(rows, yearCE){
       continue;
     }
 
+    // ★ v119: เซลล์ที่มีค่าแต่อ่านเป็นตัวเลขไม่ได้ (เช่น "ปิดปรับปรุง", "1.2.3") — ยังนับเป็น 0
+    //   เหมือนเดิมเพื่อไม่ให้ทั้งแถวหาย แต่ "แจ้งให้ตรวจ" แทนการหายเงียบ
+    METRIC_KEYS.forEach(k => {
+      const ci = COL[k];
+      if (ci != null && cellIsUnreadableNumber(row[ci])){
+        issues.push({ type:'bad_number', sheetRow: r+1, date: iso, metric: k, raw: String(row[ci]).slice(0, 40) });
+      }
+    });
     const vals = [
       cellToNum(COL.customer==null ? 0 : row[COL.customer]),
       cellToNum(COL.car==null      ? 0 : row[COL.car]),
@@ -8547,17 +8709,29 @@ function normalizeAppsScriptYears(raw){
   Object.keys(raw.years).forEach(yStr => {
     const yearCE = beToCe(Number(yStr));
     const yd = raw.years[yStr];
-    if (!yd || !yd.months) return;
+    if (!isFinite(yearCE) || yearCE < 1990 || yearCE > 2200) return;   // v119: กุญแจปีแปลกปลอม
+    if (!yd || !yd.months || typeof yd.months !== 'object') return;
     let daily = [];
+    const seen = new Set();
+    // ★ v119: ตรวจทุกแถวก่อนรับ — เส้นทางนี้คือ "ช่องทางหลัก" แต่เดิมเชื่อข้อมูลทั้งหมด
+    //   พิสูจน์ด้วยการทดสอบแล้วว่าเดิม: แถว null ทำซิงค์ล่มทั้งรอบ · วันที่ซ้ำถูกนับสองครั้ง ·
+    //   วันที่ของ "ปีอื่น" ถูกย้ายมาเป็นปีนี้ (makeDayRecord ใช้ปีของแท็บ ไม่ใช่ปีของวันที่) ·
+    //   ค่าติดลบ/ทศนิยม/ข้อความมีคอมมาผ่านเข้ามาตรงๆ · แถวที่ทุกค่าเป็น 0 ถูกนับเป็นวันที่มีข้อมูล
+    //   ทุกข้อทำให้ผลต่างจากช่องทางสำรอง (gviz) ซึ่งตรวจครบ — ตอนนี้ใช้กติกาเดียวกันทั้งสองทาง
     Object.keys(yd.months).forEach(mk => {
-      const rows = (yd.months[mk] && yd.months[mk].daily) || [];
+      const rows = (yd.months[mk] && Array.isArray(yd.months[mk].daily)) ? yd.months[mk].daily : [];
       rows.forEach(r => {
+        if (!r || typeof r !== 'object') return;
         if (Object.prototype.hasOwnProperty.call(r, 'taxi')) sawTaxiKey = true;
-        const dt = new Date(String(r.date) + 'T00:00:00');
-        if (isNaN(dt.getTime())) return;
-        daily.push(makeDayRecord(yearCE, dt.getMonth()+1, dt.getDate(),
-          [Number(r.customer)||0, Number(r.car)||0, Number(r.moto)||0,
-           Number(r.delivery)||0, Number(r.taxi)||0, Number(r.mrt)||0], r.note || ''));
+        const iso = String(r.date || '').slice(0, 10);
+        if (!isValidISO(iso)) return;                                  // วันที่ไม่มีจริง/ผิดรูปแบบ
+        if (Number(iso.slice(0, 4)) !== yearCE) return;                // วันที่หลงปี
+        if (seen.has(iso)) return;                                     // วันที่ซ้ำ — เก็บแถวแรก (กติกาเดียวกับ gviz)
+        const vals = METRIC_KEYS.map(k => cellToNum(r[k]));
+        if (vals.every(v => v === 0)) return;                          // ยังไม่กรอก ≠ วันที่มีข้อมูล
+        seen.add(iso);
+        daily.push(makeDayRecord(yearCE, Number(iso.slice(5, 7)), Number(iso.slice(8, 10)),
+          vals, r.note == null ? '' : String(r.note).trim()));
       });
     });
     if (daily.length) years[yearCE] = buildYearBundle(daily, yearCE);
@@ -8724,23 +8898,29 @@ function yearsToSync(){
 // คืนจำนวนปีที่มีการเปลี่ยนแปลงจริง
 /** ลายนิ้วมือแบบเบาของข้อมูล 1 ปี — ใช้เทียบว่า "เปลี่ยนไหม" โดยไม่ต้อง stringify ทั้งก้อน */
 function yearFingerprint(bundle){
-  let days = 0, sum = 0, last = '';
-  Object.keys(bundle || {}).forEach(k => {
-    const m = bundle[k];
+  // ★ v119: เดิมใช้ "จำนวนวัน + ผลรวมทุกค่า + ความยาวหมายเหตุ" — พิสูจน์แล้วว่าชนกันง่าย:
+  //   ย้ายยอดจากวันหนึ่งไปอีกวัน หรือสลับค่าลูกค้า↔รถยนต์ ผลรวมเท่าเดิม → ระบบเข้าใจว่า
+  //   "ข้อมูลตรงกับที่มีอยู่แล้ว" ทั้งที่เปลี่ยน และข้ามการคำนวณยอดเทียบปีก่อนใหม่
+  //   ตอนนี้แฮช FNV-1a ทุกช่องของทุกวันตามลำดับ — ค่าใดเปลี่ยนตำแหน่งไหนก็ได้ลายนิ้วมือใหม่
+  let h = 0x811c9dc5, days = 0;
+  const feed = (s) => { for (let i = 0; i < s.length; i++){ h ^= s.charCodeAt(i); h = Math.imul(h, 0x01000193) >>> 0; } };
+  MONTH_KEY_ORDER.forEach(k => {
+    const m = bundle && bundle[k];
     if (!m || !Array.isArray(m.daily)) return;
-    days += m.daily.length;
-    m.daily.forEach(d => {
-      METRIC_KEYS.forEach(mk => { sum += (Number(d[mk]) || 0); });
-      // รวมหมายเหตุด้วย เพราะการแก้ "ชื่องานกิจกรรม" อย่างเดียวก็ถือว่าข้อมูลเปลี่ยน
-      sum += String(d.note || '').length;
-      if (d.date > last) last = d.date;
+    const rows = m.daily.slice().sort((a,b)=>String(a.date).localeCompare(String(b.date)));
+    days += rows.length;
+    rows.forEach(d => {
+      feed(String(d.date) + '|');
+      METRIC_KEYS.forEach(mk => feed((Number(d[mk]) || 0) + ','));
+      feed(String(d.note || '') + '\n');
     });
   });
-  return days + '|' + sum + '|' + last;
+  return days + ':' + h.toString(16);
 }
 
 function acceptYears(incoming){
   let changed = 0;
+  acceptYears.rejected = [];
   Object.keys(incoming).forEach(yStr => {
     const y = Number(yStr);
     const cand = incoming[y];
@@ -8750,6 +8930,7 @@ function acceptYears(incoming){
     if (cur){
       const curDays = Object.keys(cur).reduce((n,k)=>n+cur[k].daily.length, 0);
       if (curDays > 0 && candDays < curDays * 0.5){
+        acceptYears.rejected.push({ y, candDays, curDays });
         console.warn(`ปฏิเสธข้อมูลปี ${ceToBe(y)}: ชุดใหม่ ${candDays} วัน น้อยกว่าเดิม ${curDays} วันผิดปกติ`);
         return;
       }
@@ -8861,6 +9042,7 @@ function renderSyncLogSummary(){
 //   2) gviz รายแท็บปี — ทางสำรอง ใช้ได้ตราบที่ไฟล์แชร์แบบ "ทุกคนที่มีลิงก์ดูได้"
 //   3) ถ้าไม่สำเร็จทั้งคู่ → ใช้ข้อมูลที่ฝังไว้ในไฟล์ต่อ (แอปไม่พัง แค่ข้อมูลไม่สด)
 // ═══════════════════════════════════════════════════════════════
+let lastBackendVersion = null;   // v119: เวอร์ชันสคริปต์ที่ตอบกลับจริง (ใช้ในบรรทัดแหล่งข้อมูลของรายงาน)
 let lastDataIssues = [];  // ข้อมูลผิดปกติจากการซิงค์ล่าสุด — แสดงในหน้า "ตรวจสอบการเชื่อมต่อ"
 let lastSyncError = null; // v85: สาเหตุที่ซิงค์ล่าสุดไม่สำเร็จ (ข้อความที่ผู้ใช้ทำตามต่อได้)
 
@@ -8913,7 +9095,14 @@ function explainSyncError(asErr, gvErr){
 }
 
 async function syncAllFromSheets(silent){
-  if (syncInProgress) return;
+  if (syncInProgress){
+    // ★ v119: เดิม "ทิ้ง" คำขอที่มาระหว่างซิงค์อยู่ — ถ้าเพิ่งบันทึกข้อมูลขณะที่ซิงค์อัตโนมัติ
+    //   กำลังทำงาน รอบที่วิ่งอยู่อาจดึงข้อมูลก่อนบันทึกมา และหน้าจอค้างข้อมูลเก่าไปอีก 5 นาที
+    //   ตอนนี้จองไว้หนึ่งรอบ แล้วซิงค์ซ้ำทันทีที่รอบเดิมจบ (จองซ้ำกี่ครั้งก็รวมเป็นรอบเดียว)
+    syncQueued = true;
+    if (!silent) syncQueuedLoud = true;
+    return;
+  }
   // ★★ v96: กันข้อมูลสดเขียนทับงานที่ผู้ใช้แก้ค้างไว้แต่ยังไม่ได้บันทึก
   //   เดิมรอบซิงค์อัตโนมัติ (ทุก 5 นาที) จะทับทันทีโดยไม่เตือน = งานที่แก้หายทั้งหมด
   //   ระบบจึงข้ามรอบซิงค์อัตโนมัติไว้จนกว่าจะบันทึกหรือยกเลิกการแก้ไข
@@ -8939,6 +9128,7 @@ async function syncAllFromSheets(silent){
     try {
       const raw = await withRetry(() => fetchFromAppsScript(), 'Apps Script');
       const years = normalizeAppsScriptYears(raw);
+      lastBackendVersion = (raw && typeof raw.version === 'string') ? raw.version.slice(0, 40) : null;   // v119
       changedYears = acceptYears(years);
       rememberDiscoveredYears(Object.keys(years).map(Number));   // v111
       lastDataIssues = Array.isArray(raw.dataIssues) ? raw.dataIssues : [];
@@ -8987,6 +9177,12 @@ async function syncAllFromSheets(silent){
       if (changedYears > 0) refreshLatestSelections();
       renderCurrentView();
       if (changedYears > 0) auditThaiHolidays();
+      if (acceptYears.rejected && acceptYears.rejected.length){
+        // ★ v119: เดิมการไม่รับข้อมูลปีใดปีหนึ่งแจ้งแค่ในคอนโซล ผู้ใช้ไม่รู้ว่าปีนั้น "ไม่ได้อัปเดต"
+        const list = acceptYears.rejected.map(r => `พ.ศ. ${ceToBe(r.y)} (ได้ ${r.candDays} จากเดิม ${r.curDays} วัน)`).join(', ');
+        showToast(`ไม่รับข้อมูลชุดใหม่บางปี เพราะจำนวนวันลดลงเกินครึ่ง (อาจอ่านชีตได้ไม่ครบ): ${list} — ใช้ข้อมูลเดิมแทน`, 'error');
+        setSyncStatus('warn', `ซิงค์ ${timeStr} น. · ไม่รับข้อมูลบางปี (ลดลงผิดปกติ) — ใช้ข้อมูลเดิม`);
+      }
       if (lastDataIssues.length && !silent){
         showToast(`พบข้อมูลผิดปกติในไฟล์ต้นทาง ${lastDataIssues.length} รายการ — ดูรายละเอียดที่ "ตรวจสอบการเชื่อมต่อ"`, 'error');
       }
@@ -8994,6 +9190,11 @@ async function syncAllFromSheets(silent){
     }
   } finally {
     syncInProgress = false;
+    if (syncQueued){
+      const loud = syncQueuedLoud;
+      syncQueued = false; syncQueuedLoud = false;
+      setTimeout(() => syncAllFromSheets(!loud), 0);
+    }
   }
 }
 
@@ -9149,6 +9350,10 @@ async function runConnectionDiagnostics(){
       const where = it.sheetName ? `แท็บ "${esc(it.sheetName)}" แถวที่ ${it.sheetRow}` : `แถวที่ ${it.sheetRow}`;
       const extra = (it.statedWeekday && it.actualWeekday && it.statedWeekday.toUpperCase() !== it.actualWeekday)
         ? ` · ชีตระบุวัน "${esc(it.statedWeekday)}" แต่วันที่นี้จริงๆ คือ ${it.actualWeekday}` : '';
+      if (it.type === 'bad_number'){
+        const lab = (METRIC_COLOR[it.metric] && METRIC_COLOR[it.metric].label) || it.metric || '';
+        return `<li>${where}: วันที่ ${esc(it.date || '')} ช่อง${esc(lab)} มีค่า "${esc(it.raw || '')}" ซึ่งอ่านเป็นตัวเลขไม่ได้ — นับเป็น 0 ไว้ก่อน</li>`;
+      }
       return `<li>${where}: วันที่ ${esc(it.date || '')} ซ้ำกับแถวก่อนหน้า${extra}</li>`;
     }).join('');
     issueHtml = diagRow('warn', `พบข้อมูลผิดปกติในไฟล์ต้นทาง ${lastDataIssues.length} รายการ`,
@@ -10190,10 +10395,15 @@ const SAVE_URL_LIMIT = 6000;
 function chunkRecordsForSave(records){
   const chunks = [];
   let cur = [];
+  const urlLen = (arr) => APPS_SCRIPT_URL.length + encodeURIComponent(JSON.stringify(arr)).length + 80;
   records.forEach(rec => {
+    // ★ v119: รายการเดียวที่ยาวเกินเพดาน URL (หมายเหตุยาวมาก) — เดิมถูกส่งไปอยู่ดี แล้วล้มเหลว
+    //   ด้วยข้อความ "เครือข่ายถูกบล็อก" ซึ่งชี้ไปผิดสาเหตุ ตอนนี้แจ้งตรงๆ ก่อนส่ง
+    if (urlLen([rec]) > SAVE_URL_LIMIT){
+      throw new Error(`หมายเหตุของวันที่ ${formatThaiDateShort(rec.date)} ยาวเกินไป — กรุณาย่อให้ไม่เกิน ${NOTE_MAX} ตัวอักษร`);
+    }
     const test = cur.concat([rec]);
-    const len = APPS_SCRIPT_URL.length + encodeURIComponent(JSON.stringify(test)).length + 80;
-    if (cur.length && len > SAVE_URL_LIMIT){ chunks.push(cur); cur = [rec]; }
+    if (cur.length && urlLen(test) > SAVE_URL_LIMIT){ chunks.push(cur); cur = [rec]; }
     else cur = test;
   });
   if (cur.length) chunks.push(cur);
@@ -10205,16 +10415,30 @@ async function saveRecordsToSheet(records){
   if (!records.length) throw new Error('ไม่มีข้อมูลให้บันทึก');
   const chunks = chunkRecordsForSave(records);
   const total = { updatedCount:0, createdCount:0, skippedCount:0, sheetsCreated:[], skipped:[] };
-
+  // ★ บันทึกทีละชุดตามเพดานความยาว URL · ไม่ใช้ withRetry กับการ "เขียน" (ลองซ้ำอัตโนมัติขณะไม่รู้ผล
+  //   อาจทำให้ผู้ใช้ไม่รู้ว่าเกิดอะไรขึ้น) — ให้ผู้ใช้เป็นคนกดบันทึกซ้ำเอง ซึ่งปลอดภัยเพราะการบันทึก
+  //   วันเดิมซ้ำคือการเขียนค่าเดิมทับที่แถวเดิม (Apps Script ค้นแถวตามวันที่ก่อนเสมอ)
+  // ★ v119: ถ้าชุดหลังล้มเหลว ชุดก่อนหน้า "ลงชีตไปแล้วจริง" — เดิมโยน error ทิ้งโดยไม่บอกว่าส่วนไหนสำเร็จ
+  //   ผู้ใช้เห็น "บันทึกไม่สำเร็จ" ทั้งที่ชีตเปลี่ยนไปแล้วบางส่วน และเลิกทำส่วนนั้นไม่ได้
+  //   ตอนนี้แนบรายการที่สำเร็จ (err.savedRecords) ไปกับ error ให้ผู้เรียกจัดการต่อได้ถูกต้อง
+  const saved = [];
   for (let i = 0; i < chunks.length; i++){
     if (chunks.length > 1) setSyncStatus('syncing', `กำลังบันทึก... (ชุดที่ ${i+1}/${chunks.length})`);
     const url = APPS_SCRIPT_URL + '?mode=save&records=' + encodeURIComponent(JSON.stringify(chunks[i]));
-    // ★ ไม่ใช้ withRetry กับการ "เขียน" ข้อมูล — ต่างจากการอ่าน
-    //   ถ้าคำขอไปถึงเซิร์ฟเวอร์แล้วแต่คำตอบหายระหว่างทาง การยิงซ้ำอาจทำให้บันทึกซ้ำสองรอบ
-    //   ในที่นี้ผลลัพธ์คือการ "เขียนทับค่าเดิมด้วยค่าเดียวกัน" ซึ่งไม่เสียหาย
-    //   แต่เพื่อความปลอดภัยของข้อมูลจึงให้ผู้ใช้ตัดสินใจกดใหม่เองดีกว่าลองอัตโนมัติ
-    const res = await jsonp(url, { callbackParam:'callback', timeout:30000 });
-    if (!res || res.ok === false) throw new Error((res && res.error) || 'Apps Script ตอบกลับผิดรูปแบบ');
+    let res;
+    try {
+      res = await jsonp(url, { callbackParam:'callback', timeout:30000 });
+      if (!res || res.ok === false) throw new Error((res && res.error) || 'Apps Script ตอบกลับผิดรูปแบบ');
+    } catch(err){
+      if (err && err.code === 'timeout'){
+        // หมดเวลารอ "คำตอบ" ไม่ได้แปลว่าไม่ได้บันทึก — เซิร์ฟเวอร์อาจเขียนเสร็จแล้วแต่ตอบช้า
+        err.message = 'หมดเวลารอการตอบกลับ — ชุดนี้อาจบันทึกไปแล้ว ระบบจะซิงค์เพื่อตรวจสอบ หากยังค้างให้กดบันทึกอีกครั้ง (บันทึกซ้ำได้อย่างปลอดภัย)';
+      }
+      err.savedRecords = saved.slice();
+      err.totalRecords = records.length;
+      throw err;
+    }
+    saved.push(...chunks[i]);
     total.updatedCount += res.updatedCount || 0;
     total.createdCount += res.createdCount || 0;
     total.skippedCount += res.skippedCount || 0;
@@ -10268,16 +10492,16 @@ function renderEntryForm(){
 function renderEntrySingle(){
   const dateEl = document.getElementById('entryDate');
   if (!dateEl.value){
-    // ค่าเริ่มต้น = วันถัดจากวันล่าสุดที่มีข้อมูล (วันที่ผู้ใช้น่าจะต้องกรอกต่อ)
-    const days = allDaysOfYear(state.year);
-    if (days.length){
-      const last = new Date(days[days.length-1].date + 'T00:00:00');
-      last.setDate(last.getDate() + 1);
-      dateEl.value = toLocalISO(last);
-    } else {
-      dateEl.value = toLocalISO(new Date());
-    }
+    // ★ v119: เสนอ "วันถัดจากวันล่าสุดที่มีข้อมูล" ของทั้งระบบ ไม่เกินวันนี้
+    //   เดิมใช้ปีที่เลือกอยู่บนหน้าจอ — ถ้าผู้ใช้เปิดดูปี 2567 ไว้ ระบบเสนอ 1 ม.ค. 2568
+    //   (ทดสอบจริง) เจ้าหน้าที่ที่ไม่ทันสังเกตจะบันทึกยอดวันนี้ลงวันที่ผิดปี
+    //   และถ้าวันล่าสุดคือวันนี้ เดิมจะเสนอ "พรุ่งนี้" ซึ่งยังไม่มียอดให้กรอก
+    const today = toLocalISO(new Date());
+    const last = latestRecordedDate();
+    const next = last ? shiftISO(last, { days: 1 }) : today;
+    dateEl.value = next > today ? today : next;
   }
+  dateEl.max = shiftISO(toLocalISO(new Date()), { years: 1 });
 
   const fields = document.getElementById('entryFields');
   if (!fields.dataset.built){
@@ -10286,7 +10510,7 @@ function renderEntrySingle(){
         <label class="text-xs font-semibold block mb-1" style="color:${metricInk(k)};">
           ${METRIC_COLOR[k].label} <span style="font-weight:400;color:var(--ink-soft);">(${METRIC_COLOR[k].unit})</span>
         </label>
-        <input type="number" min="0" step="1" data-metric="${k}" placeholder="เว้นว่าง = ไม่บันทึกทับ"
+        <input type="text" inputmode="numeric" autocomplete="off" data-metric="${k}" placeholder="เว้นว่าง = ไม่บันทึกทับ"
                class="entryInput edit-input text-sm rounded-lg px-3 py-2 w-full" style="border:1px solid var(--line);">
       </div>`).join('');
     fields.dataset.built = '1';
@@ -10327,6 +10551,40 @@ function updateEntryDateInfo(){
 //   เพดานตั้งไว้ราว 3 เท่าของสถิติสูงสุดที่เคยเกิดจริง จึงกันเลขพิมพ์เกินหลักได้
 //   โดยไม่ขวางวันที่ทำยอดสูงเป็นประวัติการณ์จริงๆ
 const ENTRY_MAX = { customer:300000, car:60000, moto:20000, delivery:10000, taxi:10000, mrt:60000 };
+const NOTE_MAX = 300;   // v119: ความยาวหมายเหตุสูงสุด — คำขอบันทึกส่งผ่าน URL ซึ่งยาวได้จำกัด
+
+/** ★ v119: อ่านค่าที่ผู้ใช้กรอกในช่องตัวเลข (ใช้ร่วมกันทั้งฟอร์มกรอก ตารางกรอกหลายวัน และตารางแก้ไข)
+ *  คืน { empty:true } | { value:n } | { error:'ข้อความ' }
+ *  ★ เหตุที่ต้องมี: เดิมช่องเป็น type="number" ซึ่งเบราว์เซอร์คืนค่า "" ให้เมื่อพิมพ์ "1,234"
+ *    → ฟอร์มกรอกตีความว่า "เว้นว่าง" แล้วข้ามช่องนั้นเงียบๆ (ผู้ใช้คิดว่าบันทึกแล้ว)
+ *    → ตารางแก้ไขตีความเป็น 0 แล้วจัดคิวไปเขียนทับยอดจริงในชีต (พิสูจน์แล้ว: 8,668 → 0)
+ *    และทศนิยม "12.7" ถูกปัดเป็น 13 เงียบๆ — จำนวนคน/คันที่มีทศนิยมคือพิมพ์ผิดเสมอ */
+function readCountInput(raw, key){
+  const s = String(raw == null ? '' : raw).trim();
+  if (!s) return { empty:true };
+  const n = parseCount(s);
+  const label = (METRIC_COLOR[key] && METRIC_COLOR[key].label) || key;
+  if (n === null) return { error:`${label}: "${s}" ไม่ใช่ตัวเลข` };
+  if (n < 0) return { error:`${label}: ต้องไม่ติดลบ` };
+  if (Math.floor(n) !== n) return { error:`${label}: ต้องเป็นจำนวนเต็ม (พบ ${s})` };
+  if (ENTRY_MAX[key] && n > ENTRY_MAX[key]) return { error:`${label}: ${fmt(n)} สูงผิดปกติ (เกิน ${fmt(ENTRY_MAX[key])})` };
+  return { value:n };
+}
+/** แสดงตัวเลขในช่องกรอกพร้อมคอมมา (ช่องรับคอมมาได้แล้ว จึงอ่านง่ายขึ้นโดยไม่เสียความแม่นยำ) */
+function fmtInput(n){ const v = Number(n); return isFinite(v) ? Math.round(v).toLocaleString('en-US') : ''; }
+
+/** ★ v119: คำนวณยอดรวมรายเดือน (totalCur) ใหม่หลังแก้ไขข้อมูลบนหน้าจอ
+ *  เดิมแก้ค่าหรือลบแถวแล้ว totalCur ไม่เปลี่ยน — หน้า "ยอดสูงสุดรายเดือน" (อ่าน totalCur)
+ *  จึงแสดงยอดก่อนแก้ ขณะที่หน้ารายเดือน (รวมจากแถวรายวัน) แสดงยอดหลังแก้
+ *  วัดได้ต่างกัน 41,680 คนในเดือนเดียวหลังลบแถวเดียว */
+function recomputeTotalsForDate(iso){
+  try {
+    const y = Number(String(iso).slice(0, 4)), mk = MONTH_KEY_ORDER[Number(String(iso).slice(5, 7)) - 1];
+    const b = state.years[y];
+    if (b && mk && b[mk]) b[mk].totalCur = sumMetrics(b[mk].daily);
+    linkPrevYearTotals(state.years);
+  } catch(e){ console.warn('คำนวณยอดรวมใหม่ไม่สำเร็จ:', e); }
+}
 
 async function submitEntrySingle(){
   const iso = document.getElementById('entryDate').value;
@@ -10350,24 +10608,21 @@ async function submitEntrySingle(){
   document.querySelectorAll('#entryFields .entryInput').forEach(inp => {
     const key = inp.dataset.metric;
     const label = (METRIC_COLOR[key] && METRIC_COLOR[key].label) || key;
-    const v = inp.value.trim();
-    if (v === ''){ inp.style.borderColor = 'var(--line)'; return; }   // เว้นว่าง = ไม่บันทึกทับค่าเดิม
-    const n = Number(v);
-    if (!isFinite(n) || n < 0){
-      inp.style.borderColor = 'var(--down)';
-      badFields.push(`${label} (ต้องเป็นตัวเลขไม่ติดลบ)`);
-      return;
+    // ★ v119: อ่านค่าด้วยตัวตรวจกลาง — รับ "1,234" / เลขไทย · ปฏิเสธทศนิยม/ติดลบ/ไม่ใช่ตัวเลข
+    //   (เดิมช่อง type=number คืน "" ให้เมื่อพิมพ์คอมมา → ช่องนั้นถูกข้ามเงียบๆ ทั้งที่ผู้ใช้กรอกแล้ว)
+    if (inp.validity && inp.validity.badInput){
+      inp.style.borderColor = 'var(--down)'; badFields.push(`${label} (เบราว์เซอร์อ่านค่าไม่ได้)`); return;
     }
-    if (n > ENTRY_MAX[key]){
-      inp.style.borderColor = 'var(--down)';
-      badFields.push(`${label} (${fmt(n)} สูงผิดปกติ — เกิน ${fmt(ENTRY_MAX[key])})`);
-      return;
-    }
+    const r = readCountInput(inp.value, key);
+    if (r.empty){ inp.style.borderColor = 'var(--line)'; return; }   // เว้นว่าง = ไม่บันทึกทับค่าเดิม
+    if (r.error){ inp.style.borderColor = 'var(--down)'; badFields.push(r.error); return; }
     inp.style.borderColor = 'var(--line)';
-    rec[key] = Math.round(n);
+    inp.value = fmtInput(r.value);
+    rec[key] = r.value;
     filled++;
   });
   const note = document.getElementById('entryNote').value.trim();
+  if (note.length > NOTE_MAX){ showToast(`หมายเหตุยาว ${note.length} ตัวอักษร — ไม่เกิน ${NOTE_MAX}`, 'error'); return; }
   if (note) rec.note = note;
 
   if (badFields.length){
@@ -10376,6 +10631,9 @@ async function submitEntrySingle(){
     return;
   }
   if (!filled && !note){ showToast('ยังไม่ได้กรอกข้อมูลใดเลย', 'error'); return; }
+  // ★ v119: วันที่ในอนาคต — ยอดจริงของวันที่ยังมาไม่ถึงไม่มีทางมีได้ จึงมักเป็นการเลือกวันผิด
+  if (iso > toLocalISO(new Date()) &&
+      !confirm(`วันที่ ${thaiWeekday(iso)} ${formatThaiDateShort(iso)} เป็นวันในอนาคต\n\nยืนยันว่าต้องการบันทึกยอดลงวันนี้จริงหรือไม่?`)) return;
 
   const btn = document.getElementById('entrySaveBtn');
   btn.disabled = true; btn.style.opacity = '.6';
@@ -10454,7 +10712,7 @@ function buildEntryRangeTable(){
     const ex = (state.years[yearCE] ? allDaysOfYear(yearCE) : []).find(d => d.date === iso);
     const hol = isThaiHoliday(iso);
     const inputs = METRIC_KEYS.map(k => `
-      <td style="padding:2px 3px;"><input type="number" min="0" step="1" data-iso="${iso}" data-metric="${k}"
+      <td style="padding:2px 3px;"><input type="text" inputmode="numeric" autocomplete="off" data-iso="${iso}" data-metric="${k}"
         value="${ex ? (ex[k] || '') : ''}" class="entryCell edit-input text-sm rounded px-1.5 py-1 text-right"
         style="width:5.2rem;border:1px solid var(--line);"></td>`).join('');
     return `<tr style="${hol ? 'background:color-mix(in srgb, var(--down) 7%, transparent);' : ''}">
@@ -10492,20 +10750,13 @@ async function submitEntryRange(){
     const iso = inp.dataset.iso, key = inp.dataset.metric, v = inp.value.trim();
     if (v === ''){ inp.style.borderColor = 'var(--line)'; return; }
     if (key === 'note'){ (byDate[iso] = byDate[iso] || { date: iso }).note = v; return; }
-    const label = (METRIC_COLOR[key] && METRIC_COLOR[key].label) || key;
-    const n = Number(v);
-    if (!isFinite(n) || n < 0){
-      inp.style.borderColor = 'var(--down)';
-      badCells.push(`${formatThaiDateShort(iso)} · ${label}`);
-      return;
-    }
-    if (n > ENTRY_MAX[key]){
-      inp.style.borderColor = 'var(--down)';
-      badCells.push(`${formatThaiDateShort(iso)} · ${label} สูงผิดปกติ`);
-      return;
-    }
+    // ★ v119: ตัวตรวจกลางเดียวกับฟอร์มกรอกรายวัน
+    if (inp.validity && inp.validity.badInput){ inp.style.borderColor = 'var(--down)'; badCells.push(`${formatThaiDateShort(iso)} · อ่านค่าไม่ได้`); return; }
+    const r = readCountInput(v, key);
+    if (r.error){ inp.style.borderColor = 'var(--down)'; badCells.push(`${formatThaiDateShort(iso)} · ${r.error}`); return; }
     inp.style.borderColor = 'var(--line)';
-    (byDate[iso] = byDate[iso] || { date: iso })[key] = Math.round(n);
+    inp.value = fmtInput(r.value);
+    (byDate[iso] = byDate[iso] || { date: iso })[key] = r.value;
   });
 
   if (badCells.length){
@@ -10517,6 +10768,11 @@ async function submitEntryRange(){
 
   const records = Object.values(byDate);
   if (!records.length){ showToast('ยังไม่ได้กรอกข้อมูลใดเลย', 'error'); return; }
+  const longNote = records.find(r => r.note && r.note.length > NOTE_MAX);
+  if (longNote){ showToast(`หมายเหตุของ ${formatThaiDateShort(longNote.date)} ยาวเกิน ${NOTE_MAX} ตัวอักษร`, 'error'); return; }
+  const today = toLocalISO(new Date());
+  const future = records.filter(r => r.date > today).map(r => formatThaiDateShort(r.date));
+  if (future.length && !confirm(`มี ${future.length} วันที่เป็นวันในอนาคต (${future.slice(0,5).join(', ')}${future.length>5?' …':''})\n\nยืนยันว่าต้องการบันทึกหรือไม่?`)) return;
 
   const btn = document.getElementById('entryRangeSaveBtn');
   btn.disabled = true; btn.style.opacity = '.6';
@@ -10530,8 +10786,12 @@ async function submitEntryRange(){
     showToast(`บันทึก ${res.updatedCount + res.createdCount} วันลง Google Sheets สำเร็จ`, 'success');
     await syncAllFromSheets(true);
   } catch(err){
-    msg.innerHTML = `<span style="color:var(--down);font-weight:600;">✗ ${esc(err.message)}</span>`;
-    showToast('บันทึกไม่สำเร็จ: ' + err.message, 'error');
+    const done = (err && Array.isArray(err.savedRecords)) ? err.savedRecords.length : 0;
+    // ★ v119: แจ้งให้ชัดว่าบันทึกไปแล้วกี่วัน — ช่องที่กรอกยังอยู่ครบ กดบันทึกซ้ำได้อย่างปลอดภัย
+    const head = done ? `บันทึกได้ ${done} จาก ${records.length} วัน — ` : '';
+    msg.innerHTML = `<span style="color:var(--down);font-weight:600;">✗ ${esc(head + err.message)}</span>`;
+    showToast((done ? head : 'บันทึกไม่สำเร็จ: ') + err.message, 'error');
+    if (done || (err && err.code === 'timeout')) syncAllFromSheets(true);
   } finally {
     btn.disabled = false; btn.style.opacity = '1';
   }
@@ -11609,6 +11869,110 @@ const RPT_THEME = {
 //   ใช้ "ที่ว่าง" และ "ลำดับความสำคัญของตัวอักษร" จัดระเบียบแทนการใช้สี
 //   ยังคงอัตลักษณ์พาเลต Sunrise Sorbet ผ่านแถบสีและป้ายกำกับ แต่ไม่รบกวนการอ่าน
 // ═══════════════════════════════════════════════════════════════
+// ═══════════════════════════════════════════════════════════════
+// v119 — ข้อมูลควบคุมเอกสาร (Document Control) ของรายงานทางการ
+// ───────────────────────────────────────────────────────────────
+// รายงานที่ส่งต่อผู้บริหาร/หน่วยงานอื่นตามมาตรฐานเอกสารทางการต้องตอบได้ 5 ข้อโดยไม่ต้องถาม:
+//   ① เอกสารฉบับไหน (เลขที่รายงาน — อ้างอิง/ติดตามได้ แยกฉบับที่ดึงคนละเวลาออกจากกัน)
+//   ② ครอบคลุมช่วงใด  ③ ข้อมูลถึงวันไหน (ตัวเลขเดือนที่ยังไม่จบอ่านผิดได้ง่ายถ้าไม่ระบุ)
+//   ④ ข้อมูลครบแค่ไหน (วันที่ไม่ได้บันทึกทำให้ยอดรวมต่ำกว่าความจริง — ผู้อ่านต้องรู้ก่อนตีความ)
+//   ⑤ ระดับการเปิดเผย
+// ★ ความครบถ้วนนับ "วันที่มีบันทึกจริง ÷ วันตามปฏิทินในช่วงนั้นถึงวันที่ข้อมูลล่าสุด"
+//   จึงไม่ลงโทษเดือนที่ยังไม่จบ (วันที่ยังมาไม่ถึงไม่นับเป็นวันขาด)
+// ★ ไม่ใส่ลายเซ็นผู้จัดทำ — ถูกตัดออกตามคำขอตั้งแต่ v84 (ดู reportSignatureBlock)
+// ═══════════════════════════════════════════════════════════════
+let RPT_META = null;
+const RPT_SCOPE_CODE = { all:'Y', month:'M', week:'W', peaks:'P', peaksDaily:'PD', peaksMonthly:'PM',
+                         peaksAll:'PY', peaksAllTime:'PA', events:'E' };
+const RPT_SCOPE_NAME = { all:'รายงานภาพรวมประจำปี', month:'รายงานประจำเดือน', week:'รายงานประจำสัปดาห์',
+  peaks:'รายงานยอดสูงสุด', peaksDaily:'รายงานยอดสูงสุดรายวัน', peaksMonthly:'รายงานยอดสูงสุดรายเดือน',
+  peaksAll:'รายงานยอดสูงสุดเทียบรายปี', peaksAllTime:'รายงานยอดสูงสุดตลอดกาล', events:'รายงานผลงานกิจกรรม' };
+
+/** ช่วงวันที่ตามปฏิทินของรายงานแต่ละประเภท → { start, end, label } (ISO) */
+function reportPeriod(scope, monthKey, weekNo){
+  const y = state.year;
+  const pad = n => String(n).padStart(2, '0');
+  if (scope === 'month' || scope === 'week'){
+    const m = state.data[monthKey];
+    const mn = m ? m.monthNum : (MONTH_KEY_ORDER.indexOf(monthKey) + 1);
+    const yy = m ? m.year : y;
+    const dim = daysInMonth(mn, yy);
+    if (scope === 'week'){
+      // ช่วงสัปดาห์ตามปฏิทิน จันทร์–อาทิตย์ ตัดขอบที่ต้น/ปลายเดือน (สูตรเดียวกับ makeDayRecord)
+      const off = (new Date(yy, mn - 1, 1).getDay() + 6) % 7, n = Number(weekNo) || 1;
+      const a = Math.max(1, (n - 1) * 7 - off + 1), b = Math.min(dim, n * 7 - off);
+      return { start:`${yy}-${pad(mn)}-${pad(a)}`, end:`${yy}-${pad(mn)}-${pad(b)}`,
+               label:`สัปดาห์ที่ ${n} · ${a}–${b} ${THAI_MONTH_SHORT[mn]} ${ceToBe(yy)}`, code:`${ceToBe(yy)}.${pad(mn)}-W${n}` };
+    }
+    return { start:`${yy}-${pad(mn)}-01`, end:`${yy}-${pad(mn)}-${pad(dim)}`,
+             label:`${THAI_MONTH_FULL[mn]} ${ceToBe(yy)}`, code:`${ceToBe(yy)}.${pad(mn)}` };
+  }
+  if (scope === 'peaksAll' || scope === 'peaksAllTime' || scope === 'events'){
+    const ys = availableYears().slice().sort((a,b)=>a-b);
+    if (!ys.length) return null;
+    return { start:`${ys[0]}-01-01`, end:`${ys[ys.length-1]}-12-31`,
+             label:`พ.ศ. ${ceToBe(ys[0])}–${ceToBe(ys[ys.length-1])} (${ys.length} ปี)`, code:`${ceToBe(ys[0])}-${ceToBe(ys[ys.length-1])}` };
+  }
+  return { start:`${y}-01-01`, end:`${y}-12-31`, label:`ปี พ.ศ. ${ceToBe(y)}`, code:`${ceToBe(y)}` };
+}
+
+/** นับความครบถ้วน: วันที่มีบันทึก ÷ วันตามปฏิทิน (ตั้งแต่ต้นช่วง ถึงวันที่ข้อมูลล่าสุดในช่วง) */
+function reportCoverage(start, end){
+  const y0 = Number(start.slice(0,4)), y1 = Number(end.slice(0,4));
+  let recorded = 0, last = null, first = null;
+  for (let y = y0; y <= y1; y++){
+    allDaysOfYear(y).forEach(d => {
+      if (d.date < start || d.date > end || !hasAnyRecord(d)) return;
+      recorded++;
+      if (!last || d.date > last) last = d.date;
+      if (!first || d.date < first) first = d.date;
+    });
+  }
+  if (!last) return { recorded:0, calendar:0, pct:null, asOf:null };
+  // ช่วงหลายปี: นับจากวันแรกที่มีข้อมูลจริง (ปีแรกๆ อาจเริ่มบันทึกกลางปี)
+  const from = (y1 > y0) ? first : start;
+  const calendar = Math.round((new Date(last + 'T00:00:00') - new Date(from + 'T00:00:00')) / 86400000) + 1;
+  return { recorded, calendar, pct: calendar > 0 ? recorded / calendar * 100 : null, asOf:last };
+}
+
+function buildReportMeta(scope, monthKey, weekNo){
+  try {
+    const per = reportPeriod(scope, monthKey, weekNo);
+    if (!per) return null;
+    const cov = reportCoverage(per.start, per.end);
+    const now = new Date();
+    const pad = n => String(n).padStart(2, '0');
+    const stamp = `${String(ceToBe(now.getFullYear())).slice(2)}${pad(now.getMonth()+1)}${pad(now.getDate())}.${pad(now.getHours())}${pad(now.getMinutes())}`;
+    return {
+      docNo: `TCV-${RPT_SCOPE_CODE[scope] || 'R'}-${per.code}-${stamp}`,
+      typeName: RPT_SCOPE_NAME[scope] || 'รายงาน',
+      period: per.label,
+      asOf: cov.asOf ? `${Number(cov.asOf.slice(8,10))} ${THAI_MONTH_SHORT[Number(cov.asOf.slice(5,7))]} ${ceToBe(Number(cov.asOf.slice(0,4)))}` : '—',   // ปี พ.ศ. 4 หลักตามแบบเอกสารทางการ
+      coverage: cov.pct === null ? '—' : `${fmt(cov.recorded)} / ${fmt(cov.calendar)} วัน (${cov.pct.toFixed(1)}%)`,
+      coverageLow: cov.pct !== null && cov.pct < 95,
+      issued: `${now.getDate()} ${THAI_MONTH_SHORT[now.getMonth()+1]} ${ceToBe(now.getFullYear())} ${pad(now.getHours())}:${pad(now.getMinutes())} น.`,
+      headerDone: false
+    };
+  } catch(e){ console.warn('สร้างข้อมูลควบคุมเอกสารไม่สำเร็จ:', e); return null; }
+}
+
+/** แถบข้อมูลควบคุมเอกสาร — แสดงเต็มที่หน้าแรกของรายงาน หน้าถัดไปมีเลขที่ในส่วนท้ายแทน */
+function rptMetaStrip(){
+  if (!RPT_META || RPT_META.headerDone) return '';
+  RPT_META.headerDone = true;
+  const cell = (k, v, warn, grow) => `<div style="flex:${grow || 1} 1 0;min-width:0;padding:6px 11px;border-left:1px solid ${RPT.line};">
+      <p style="margin:0;font-size:9.5px;letter-spacing:.3px;color:${RPT.soft};white-space:nowrap;">${k}</p>
+      <p style="margin:1px 0 0;font-size:11.5px;font-weight:600;color:${warn ? '#A9401C' : RPT.ink};white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${v}</p></div>`;
+  return `<div style="display:flex;margin:10px 42px 0 39px;border:1px solid ${RPT.line};border-left:none;border-radius:6px;background:#FAFBFC;">
+    ${cell('เลขที่รายงาน', esc(RPT_META.docNo), false, 1.45)}
+    ${cell('ช่วงข้อมูล', esc(RPT_META.period))}
+    ${cell('ข้อมูล ณ วันที่', esc(RPT_META.asOf))}
+    ${cell('ความครบถ้วนของข้อมูล', esc(RPT_META.coverage) + (RPT_META.coverageLow ? ' ⚠' : ''), RPT_META.coverageLow)}
+    ${cell('ออกรายงานเมื่อ', esc(RPT_META.issued))}
+    ${cell('การเปิดเผย', 'ใช้ภายในองค์กร', false, .8)}
+  </div>`;
+}
+
 function rptHeader(title, subtitle, badge, theme){
   const t = theme || RPT_THEME.overview;
   return `
@@ -11645,11 +12009,12 @@ function rptHeader(title, subtitle, badge, theme){
           </svg>
           <p style="margin:0;font-family:Kanit;font-weight:600;font-size:12.5px;color:${RPT.ink};">ศูนย์การค้า ซีคอน บางแค</p>
         </div>
-        <p style="margin:0;font-size:11px;color:${RPT.soft};line-height:1.6;">จัดทำ ${nowThaiDateStr()}</p>
+        <p style="margin:0;font-size:11px;color:${RPT.soft};line-height:1.6;">${RPT_META ? esc(RPT_META.typeName) + ' · ' : ''}จัดทำ ${nowThaiDateStr()}</p>
       </div>
     </div>
   </div>
-  <div style="height:1px;background:${RPT.line};margin:0 42px 0 39px;"></div>`;
+  ${rptMetaStrip()}
+  <div style="height:1px;background:${RPT.line};margin:${RPT_META ? '10px' : '0'} 42px 0 39px;"></div>`;
 }
 
 // v85: ท้ายรายงานเรียบขึ้น — เส้นคั่นบาง ตัวอักษรเล็กลง ไม่แย่งความสนใจจากเนื้อหา
@@ -11662,7 +12027,7 @@ function rptFooter(pageNo, pageTotal, note, theme){
       <span style="width:3px;height:11px;border-radius:2px;background:${t.accent};display:inline-block;flex-shrink:0;"></span>
       <span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${note||'ระบบวิเคราะห์ข้อมูล ฝ่ายบริการทั่วไป · ศูนย์การค้า ซีคอน บางแค'}</span>
     </span>
-    <span style="font-weight:600;flex-shrink:0;color:${RPT.ink};">${pageNo} / ${pageTotal}</span>
+    <span style="font-weight:600;flex-shrink:0;color:${RPT.ink};">${RPT_META ? `<span style="font-weight:500;color:${RPT.soft};margin-right:10px;">เลขที่ ${esc(RPT_META.docNo)}</span>` : ''}หน้า ${pageNo} / ${pageTotal}</span>
   </div>`;
 }
 
@@ -11844,6 +12209,7 @@ function buildReport(scope, monthKey, weekNo){
   if (!container){ console.error('buildReport: ไม่พบ #reportCanvas'); return []; }
   container.innerHTML = '';
   reportChartJobs = [];
+  RPT_META = null;
   const pageIds = [];
 
   try {
@@ -11875,6 +12241,8 @@ function buildReport(scope, monthKey, weekNo){
       }
     }
 
+    // v119: สร้างข้อมูลควบคุมเอกสาร "หลัง" ขั้นแก้เดือน/สัปดาห์ที่ไม่มีอยู่จริงข้างบน — ให้ตรงกับเนื้อหาที่พิมพ์จริง
+    RPT_META = buildReportMeta(scope, monthKey, weekNo);
     if (scope === 'events') {
       buildEventReport(container, pageIds);
     } else if (scope === 'peaksAllTime') {
@@ -11956,7 +12324,7 @@ function rptMethodology(lines){
 
 /** ข้อความระบุแหล่งข้อมูลและเวลาที่ดึง — ใช้ซ้ำได้ทุกรายงาน */
 function rptSourceLine(){
-  const srcName = lastSyncSource === 'appsscript' ? 'Google Apps Script (Code_40.gs)'
+  const srcName = lastSyncSource === 'appsscript' ? `Google Apps Script${lastBackendVersion ? ' (' + esc(lastBackendVersion) + ')' : ''}`
                 : lastSyncSource === 'gviz' ? 'Google Sheets โดยตรง (gviz)'
                 : 'ชุดข้อมูลสำรองที่บันทึกไว้ในไฟล์ระบบ';
   const when = lastSyncTime
@@ -12632,7 +13000,7 @@ function paginateDailyRows(sorted, budget){
   return pages.length ? pages : [[]];
 }
 
-function dailyTableRowsHtml(chunk){
+function dailyTableRowsHtml(chunk, withTaxi){
   return chunk.map(d=>`
     <tr style="border-bottom:1px solid ${RPT.line};">
       <td style="padding:7px 11px;white-space:nowrap;">${formatThaiDateShort(d.date)}</td>
@@ -12642,19 +13010,28 @@ function dailyTableRowsHtml(chunk){
       <td style="padding:7px 11px;text-align:right;white-space:nowrap;">${fmt(d.car)}</td>
       <td style="padding:7px 11px;text-align:right;white-space:nowrap;">${fmt(d.moto)}</td>
       <td style="padding:7px 11px;text-align:right;white-space:nowrap;">${fmt(d.delivery)}</td>
+      ${withTaxi ? `<td style="padding:7px 11px;text-align:right;white-space:nowrap;color:#6B4F9B;">${fmt(d.taxi||0)}</td>` : ''}
       <td style="padding:7px 11px;text-align:right;white-space:nowrap;color:#059669;font-weight:600;">${fmt(d.mrt||0)}</td>
       <td style="padding:7px 11px;font-size:11.5px;color:${RPT.soft};line-height:1.55;">${esc(d.note||'-')}</td>
     </tr>`).join('');
 }
-function dailyTableHtml(chunk){
+function dailyTableHtml(chunk, withTaxi){
+  // ★ v119: คอลัมน์แท็กซี่ — แสดงเมื่อช่วงนั้นมียอดจริง (กติกาเดียวกับทั้งระบบ: ไม่โชว์ช่อง "0" ทั้งช่วง)
+  //   เดิมรายงานรายเดือน/รายสัปดาห์ไม่มีแท็กซี่เลย แม้ช่วงที่มีข้อมูลจริง (มี.ค. 2564 = 1,340 คัน)
+  //   ขณะที่รายงานภาพรวมและยอดสูงสุดมี — รายงานทางการจึงให้ภาพไม่ครบเฉพาะบางประเภท
+  if (withTaxi === undefined) withTaxi = chunk.some(d => (Number(d.taxi) || 0) > 0);
+  const cols = withTaxi
+    ? [8, 6, 7, 8, 7.5, 6.5, 7.5, 6.5, 7, 36]
+    : [8.5, 6.5, 7.5, 8.5, 8.5, 7, 8.5, 7.5, 37.5];
   return `<table style="width:100%;font-size:12.5px;border-collapse:collapse;table-layout:fixed;">
-    <colgroup><col style="width:8.5%"><col style="width:6.5%"><col style="width:7.5%"><col style="width:8.5%"><col style="width:8.5%"><col style="width:7%"><col style="width:8.5%"><col style="width:7.5%"><col style="width:37.5%"></colgroup>
+    <colgroup>${cols.map(w => `<col style="width:${w}%">`).join('')}</colgroup>
     <thead><tr style="border-bottom:2px solid ${RPT.line};text-align:left;color:${RPT.ink};font-size:11.5px;font-weight:700;">
       <th style="padding:8px 12px;">วันที่</th><th style="padding:8px 12px;">วัน</th><th style="padding:8px 12px;">ประเภท</th>
       <th style="padding:8px 12px;text-align:right;">ลูกค้า</th><th style="padding:8px 12px;text-align:right;">รถยนต์</th>
       <th style="padding:8px 12px;text-align:right;">จยย.</th><th style="padding:8px 12px;text-align:right;">เดลิเวอรี่</th>
+      ${withTaxi ? '<th style="padding:8px 12px;text-align:right;">แท็กซี่</th>' : ''}
       <th style="padding:8px 12px;text-align:right;">MRT</th><th style="padding:8px 12px;">หมายเหตุ</th>
-    </tr></thead><tbody>${dailyTableRowsHtml(chunk)}</tbody>
+    </tr></thead><tbody>${dailyTableRowsHtml(chunk, withTaxi)}</tbody>
   </table>`;
 }
 // v84: ตัดส่วนลายเซ็นผู้จัดทำออกจากรายงานทั้งหมดตามคำขอ
@@ -12708,6 +13085,7 @@ function buildMonthlyReport(container, pageIds, monthKey){
         ${rptKpi('รถจักรยานยนต์รวม', fmt(s.totalMoto), 'คัน', RPT.cyan, RPT.teal, momMoto!==null?{pct:momMoto,mark:'*'}:null, 'moto', `เฉลี่ย ${fmt(s.avgPerDayMoto)} คัน/วัน`)}
         ${rptKpi('เดลิเวอรี่รวม', fmt(s.totalDelivery), 'คัน', RPT.pink, RPT.rose, momDeliv!==null?{pct:momDeliv,mark:'*'}:null, 'box', `เฉลี่ย ${fmt(s.avgPerDayDelivery)} คัน/วัน`)}
         ${rptKpi('ยอด MRT รวม', fmt(s.totalMrt), 'คน', '#059669', '#047857', momMrt!==null?{pct:momMrt,mark:'*'}:null, 'mrt', `เฉลี่ย ${fmt(s.avgPerDayMrt)} คน/วัน`)}
+        ${(s.totalTaxi || 0) > 0 ? rptKpi('แท็กซี่รวม', fmt(s.totalTaxi), 'คัน', '#7A5EA8', '#4C3A73', null, 'car', `เฉลี่ย ${fmt(safeDiv(s.totalTaxi, s.daysActual))} คัน/วัน`) : ''}
       </div>
       ${prevMs ? `<p style="font-size:11px;color:${RPT.faint};margin:-2px 0 2px;">* เทียบค่าเฉลี่ยต่อวันกับเดือน${prevMonthName} (เดือนก่อนหน้าที่มีข้อมูล) — เทียบที่ค่าเฉลี่ยต่อวัน ไม่ใช่ยอดรวมดิบ เพราะจำนวนวันแต่ละเดือนไม่เท่ากัน</p>` : ''}
       <!-- กลุ่มที่ 2: แถบไฮไลต์บริบท (ไม่ซ้ำยอดรวม) — จำนวนวันข้อมูล + วันพีคของเดือน -->
@@ -12732,10 +13110,15 @@ function buildMonthlyReport(container, pageIds, monthKey){
     mkBarColored('rm_daily', sorted.map(d=>new Date(d.date+'T00:00:00').getDate()),
       sorted.map(d=>Number(d.customer)||0), sorted.map(d=>d.section==='weekend'?RPT.pink:RPT.indigo),
       { enabled:true, maxLabels:10 }); // จำกัด ~10 ป้าย กันเลขทับกันเมื่อเดือนมี 28-31 วัน (จุดแรก-จุดสุดท้ายติดป้ายเสมอ)
-    mkDoughnut('rm_comp', ['รถยนต์','จยย.','เดลิเวอรี่'], [s.totalCar,s.totalMoto,s.totalDelivery], [RPT.amber,RPT.cyan,RPT.pink]);
+    // v119: สัดส่วนยานพาหนะรวมแท็กซี่ด้วยเมื่อเดือนนั้นมียอด (ไม่งั้นสัดส่วน % ของประเภทอื่นจะสูงเกินจริง)
+    if ((s.totalTaxi || 0) > 0)
+      mkDoughnut('rm_comp', ['รถยนต์','จยย.','เดลิเวอรี่','แท็กซี่'], [s.totalCar,s.totalMoto,s.totalDelivery,s.totalTaxi], [RPT.amber,RPT.cyan,RPT.pink,'#7A5EA8']);
+    else
+      mkDoughnut('rm_comp', ['รถยนต์','จยย.','เดลิเวอรี่'], [s.totalCar,s.totalMoto,s.totalDelivery], [RPT.amber,RPT.cyan,RPT.pink]);
   });
 
   // ===== หน้า 2: สรุปแยกรายสัปดาห์ =====
+  const monthHasTaxi = (s.totalTaxi || 0) > 0;   // v119
   const weekRows = weeks.map(w=>`
     <tr style="border-bottom:1px solid ${RPT.line};">
       <td style="padding:7px 9px;font-weight:600;color:${RPT.ink};">สัปดาห์ที่ ${w.weekNo}</td>
@@ -12745,6 +13128,7 @@ function buildMonthlyReport(container, pageIds, monthKey){
       <td style="padding:7px 9px;text-align:right;">${fmt(w.totals.car)}</td>
       <td style="padding:7px 9px;text-align:right;">${fmt(w.totals.moto)}</td>
       <td style="padding:7px 9px;text-align:right;">${fmt(w.totals.delivery)}</td>
+      ${monthHasTaxi ? `<td style="padding:7px 9px;text-align:right;">${fmt(w.totals.taxi||0)}</td>` : ''}
       <td style="padding:7px 9px;text-align:right;color:#059669;font-weight:600;">${fmt(w.totals.mrt)}</td>
       <td style="padding:7px 9px;text-align:right;color:${RPT.soft};">${fmt(w.avg.customer)}</td>
     </tr>`).join('');
@@ -12761,7 +13145,7 @@ function buildMonthlyReport(container, pageIds, monthKey){
           <thead><tr style="border-bottom:2px solid ${RPT.line};text-align:left;color:${RPT.ink};font-size:8.5px;font-weight:700;">
             <th style="padding:7px 9px;">สัปดาห์</th><th style="padding:7px 9px;">ช่วงวันที่</th><th style="padding:7px 9px;text-align:center;">จำนวนวัน</th>
             <th style="padding:7px 9px;text-align:right;">ลูกค้า</th><th style="padding:7px 9px;text-align:right;">รถยนต์</th>
-            <th style="padding:7px 9px;text-align:right;">จยย.</th><th style="padding:7px 9px;text-align:right;">เดลิเวอรี่</th>
+            <th style="padding:7px 9px;text-align:right;">จยย.</th><th style="padding:7px 9px;text-align:right;">เดลิเวอรี่</th>${monthHasTaxi ? '<th style="padding:7px 9px;text-align:right;">แท็กซี่</th>' : ''}
             <th style="padding:7px 9px;text-align:right;">MRT</th><th style="padding:7px 9px;text-align:right;">เฉลี่ยลูกค้า/วัน</th>
           </tr></thead><tbody>${weekRows}</tbody>
         </table>`, RPT.teal)}
@@ -12846,6 +13230,7 @@ function buildWeeklyReport(container, pageIds, monthKey, weekNo){
         ${rptKpi('รถจักรยานยนต์รวม', fmt(w.totals.moto), 'คัน', RPT.cyan, RPT.teal, wowPctMoto!==null?{pct:wowPctMoto,mark:'*'}:null, 'moto', `เฉลี่ย ${fmt(w.avg.moto)} คัน/วัน`)}
         ${rptKpi('เดลิเวอรี่รวม', fmt(w.totals.delivery), 'คัน', RPT.pink, RPT.rose, wowPctDelivery!==null?{pct:wowPctDelivery,mark:'*'}:null, 'box', `เฉลี่ย ${fmt(w.avg.delivery)} คัน/วัน`)}
         ${rptKpi('ยอด MRT รวม', fmt(w.totals.mrt), 'คน', '#059669', '#047857', wowPctMrt!==null?{pct:wowPctMrt,mark:'*'}:null, 'mrt', `เฉลี่ย ${fmt(w.avg.mrt)} คน/วัน`)}
+        ${(w.totals.taxi || 0) > 0 ? rptKpi('แท็กซี่รวม', fmt(w.totals.taxi), 'คัน', '#7A5EA8', '#4C3A73', null, 'car', `เฉลี่ย ${fmt(safeDiv(w.totals.taxi, w.dayCount))} คัน/วัน`) : ''}
       </div>
       <p style="font-size:11px;color:${RPT.faint};margin:-2px 0 2px;">* เทียบค่าเฉลี่ยต่อวันกับสัปดาห์ก่อนหน้า &nbsp;·&nbsp; † เทียบค่าเฉลี่ยของทุกสัปดาห์ในเดือนนี้ (ให้น้ำหนักแต่ละสัปดาห์เท่ากัน) &nbsp;·&nbsp; ทั้งสองแบบเทียบที่ค่าเฉลี่ยต่อวัน ไม่ใช่ยอดรวมดิบ เพราะจำนวนวันแต่ละสัปดาห์อาจไม่เท่ากัน</p>
       <!-- กลุ่มที่ 2: แถบไฮไลต์บริบท — ช่วงวันที่ / วันพีค / ค่าเฉลี่ยลูกค้าเทียบทุกสัปดาห์ (†) / องค์ประกอบวัน -->
@@ -12872,7 +13257,10 @@ function buildWeeklyReport(container, pageIds, monthKey, weekNo){
     mkBarColored('rw_daily', days.map(d=>`${new Date(d.date+'T00:00:00').getDate()} (${thaiWeekday(d.date)})`),
       days.map(d=>Number(d.customer)||0), days.map(d=>d.section==='weekend'?RPT.pink:RPT.indigo),
       { enabled:true }); // สัปดาห์มีแค่ 7 จุด ติดป้ายได้ทุกจุดโดยไม่แน่นเกินไป
-    mkDoughnut('rw_comp', ['รถยนต์','จยย.','เดลิเวอรี่'], [w.totals.car,w.totals.moto,w.totals.delivery], [RPT.amber,RPT.cyan,RPT.pink]);
+    if ((w.totals.taxi || 0) > 0)
+      mkDoughnut('rw_comp', ['รถยนต์','จยย.','เดลิเวอรี่','แท็กซี่'], [w.totals.car,w.totals.moto,w.totals.delivery,w.totals.taxi], [RPT.amber,RPT.cyan,RPT.pink,'#7A5EA8']);
+    else
+      mkDoughnut('rw_comp', ['รถยนต์','จยย.','เดลิเวอรี่'], [w.totals.car,w.totals.moto,w.totals.delivery], [RPT.amber,RPT.cyan,RPT.pink]);
   });
 
   // ===== หน้า 2: เทียบทุกสัปดาห์ในเดือน + ตารางรายวัน + บทวิเคราะห์ + ลงนาม =====
